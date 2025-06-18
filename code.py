@@ -1,24 +1,8 @@
 import numpy as np
-import os
 import matplotlib.pyplot as plt
 from enum import Enum
 from scipy.optimize import fsolve
-from PIL import Image
-from scipy.io import savemat
-import matplotlib.animation as animation
-#%% 一维可压缩流动数值模拟
-#%% 研究案例：Sod激波管问题
-#%% 类型：近似黎曼解
-#%% 求解一维欧拉方程
-#%% 使用可压缩流求解器
-#%% 涉及通量分裂(FVS/FDS) + 高分辨率迎风格式(UPW)/激波捕捉格式(SCS)
-#%% 版本：2.0
-#%% 日期：2021/12/21
 
-#%% 作业：计算流体动力学基础
-#%% 姓名：冯正昊
-#%% 学院：工程学院
-#%% 学号：2101112008
 
 #%% 程序初始化
 def Cal_Minmod(a, b):
@@ -64,7 +48,7 @@ def Cal_Minmod(a, b):
         return Q.item()
 
     return Q
-def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ):
+def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ,  flag_scs_typ):
     """
     通用通量差分计算函数(守恒形式)
 
@@ -81,6 +65,8 @@ def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ):
     xs_new, xt_new, Fh_p, Fh_n, Fx, Fx_p, Fx_n -- 索引和通量导数
     """
     # 初始化输出数组
+    xs_new = 0
+    xt_new = 0
     Fx = np.zeros((N, 3))  # 总通量导数
     Fx_p = np.zeros((N, 3))  # 正通量导数
     Fx_n = np.zeros((N, 3))  # 负通量导数
@@ -88,114 +74,13 @@ def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ):
     Fh_n = np.zeros((N, 3))  # 半网格点负通量 (j+1/2)
     Fh = np.zeros((N, 3))  # 半网格点总通量 (j+1/2)
 
-    if flag_spa_typ == 1:
-        # 1 - 一般迎风/紧致格式
-
-        if flag_upw_typ == 1:
-            # 1 - 一阶迎风格式 (2点)
-            ks = -1  # 相对于j的起始索引
-            kt = 0
-            kn = kt - ks + 1  # 系数数量
-            kp = np.array([ks, kt])  # [-1, 0]
-
-            a = np.zeros(2)
-            a[0] = -1
-            a[1] = 1
-
-            # 计算b系数
-            b = np.zeros(kn - 1)
-            b[0] = -a[0]
-
-        elif flag_upw_typ == 2:
-            # 2 - 二阶迎风格式 (3点)
-            ks = -2
-            kt = 0
-            kn = kt - ks + 1  # 3
-            kp = np.arange(ks, kt + 1)  # [-2, -1, 0]
-
-            a = np.zeros(3)
-            a[0] = 0.5
-            a[1] = -2.0
-            a[2] = 1.5
-
-            # 计算b系数
-            b = np.zeros(kn - 1)
-            b[0] = -a[0]
-            b[1] = b[0] - a[1]
-
-        elif flag_upw_typ == 3:
-            # 3 - 三阶迎风格式 (4点偏置)
-            ks = -2
-            kt = 1
-            kn = kt - ks + 1  # 4
-            kp = np.arange(ks, kt + 1)  # [-2, -1, 0, 1]
-
-            a = np.zeros(4)
-            a[0] = 1 / 6
-            a[1] = -1.0
-            a[2] = 0.5
-            a[3] = 1 / 3
-
-            # 计算b系数
-            b = np.zeros(kn - 1)
-            b[0] = -a[0]
-            b[1] = b[0] - a[1]
-            b[2] = b[1] - a[2]
-
-        elif flag_upw_typ == 4:
-            # 4 - 五阶迎风格式 (6点偏置)
-            ks = -3
-            kt = 2
-            kn = kt - ks + 1  # 6
-            kp = np.arange(ks, kt + 1)  # [-3, -2, -1, 0, 1, 2]
-
-            a = np.zeros(6)
-            a[0] = -2 / 60
-            a[1] = 15 / 60
-            a[2] = -60 / 60
-            a[3] = 20 / 60
-            a[4] = 30 / 60
-            a[5] = -3 / 60
-
-            # 计算b系数
-            b = np.zeros(kn - 1)
-            b[0] = -a[0]
-            for k in range(1, kn - 1):
-                b[k] = b[k - 1] - a[k]
-
-        # [核心算法]
-        # 根据系数计算通量
-        xs = abs(kp[1])  # 起始索引
-        xt = N - 1 - abs(kp[1])  # 结束索引
-
-        # 计算半网格点通量
-        for j in range(xs, xt):
-            for k in range(len(b)):
-                # F+ (j+1/2)
-                Fh_p[j] += b[k] * F_p[j + kp[k + 1]]
-                # F- (j-1/2)
-                Fh_n[j] += b[k] * F_n[j - kp[k + 1]]
-
-        # 更新索引范围
-        xs_new = xs + 1
-        xt_new = xt - 1
-
-        # 计算通量导数
-        for j in range(xs_new, xt_new):
-            # 正通量导数
-            Fx_p[j] = (Fh_p[j] - Fh_p[j - 1]) / dx
-            # 负通量导数
-            Fx_n[j] = (Fh_n[j + 1] - Fh_n[j]) / dx
-            # 总通量导数
-            Fx[j] = Fx_p[j] + Fx_n[j]
-
-    elif flag_spa_typ == 2:
+    if flag_spa_typ == 2:
         # 2 - 特殊激波捕捉格式
 
         if flag_scs_typ == 1:
             # 1 - TVD格式 (Van Leer限制器)
-            xs = 2  # 起始索引
-            xt = N - 1 - xs  # 结束索引
+            xs = 1  # 起始索引
+            xt = N - 2  # 结束索引
             em = 1e-5  # 小量防止除零
 
             for j in range(xs, xt):
@@ -228,97 +113,110 @@ def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ):
                 Fx[j] = Fx_p[j] + Fx_n[j]
 
         elif flag_scs_typ == 2:
-            # 2 - NND格式 (无震荡、无自由参数耗散差分格式)
+            # 2 - WENO5阶格式
+            C = np.array([1 / 10, 6 / 10, 3 / 10])
+            p = 2
+            em = 1e-6
+
             xs = 2  # 起始索引
-            xt = N - 1 - xs  # 结束索引
+            xt = N - 3  # 结束索引
+
+            for j in range(xs, xt + 1):
+                # a > 0 正通量部分
+                # 计算光滑指示器 beta
+                beta_p1 = (1 / 4) * (F_p[j - 2] - 4 * F_p[j - 1] + 3 * F_p[j]) ** 2 + (13 / 12) * (
+                            F_p[j - 2] - 2 * F_p[j - 1] + F_p[j]) ** 2
+                beta_p2 = (1 / 4) * (F_p[j - 1] - F_p[j + 1]) ** 2 + (13 / 12) * (F_p[j - 1] - 2 * F_p[j] + F_p[j + 1]) ** 2
+                beta_p3 = (1 / 4) * (3 * F_p[j] - 4 * F_p[j + 1] + F_p[j + 2]) ** 2 + (13 / 12) * (
+                            F_p[j] - 2 * F_p[j + 1] + F_p[j + 2]) ** 2
+
+                # 计算 alpha 和权重 omega
+                alpha_p = C / (em + np.array([beta_p1, beta_p2, beta_p3])) ** p
+                alpha_p_sum = np.sum(alpha_p, axis=0)
+                omega_p = alpha_p / alpha_p_sum
+
+                # 计算三个模板的通量值
+                Fh_p_c1 = (1 / 3) * F_p[j - 2] - (7 / 6) * F_p[j - 1] + (11 / 6) * F_p[j]
+                Fh_p_c2 = (-1 / 6) * F_p[j - 1] + (5 / 6) * F_p[j] + (1 / 3) * F_p[j + 1]
+                Fh_p_c3 = (1 / 3) * F_p[j] + (5 / 6) * F_p[j + 1] - (1 / 6) * F_p[j + 2]
+                Fh_p_c = np.array([Fh_p_c1, Fh_p_c2, Fh_p_c3])
+
+                # 加权组合得到 F+_{j+1/2}
+                Fh_p[j] = np.sum(omega_p * Fh_p_c, axis=0)
+
+                # ========== a < 0 负通量部分 ==========
+                # 计算光滑指示器 beta
+                beta_n1 = (1 / 4) * (F_n[j + 2] - 4 * F_n[j + 1] + 3 * F_n[j]) ** 2 + (13 / 12) * (
+                            F_n[j + 2] - 2 * F_n[j + 1] + F_n[j]) ** 2
+                beta_n2 = (1 / 4) * (F_n[j + 1] - F_n[j - 1]) ** 2 + (13 / 12) * (F_n[j + 1] - 2 * F_n[j] + F_n[j - 1]) ** 2
+                beta_n3 = (1 / 4) * (3 * F_n[j] - 4 * F_n[j - 1] + F_n[j - 2]) ** 2 + (13 / 12) * (
+                            F_n[j] - 2 * F_n[j - 1] + F_n[j - 2]) ** 2
+
+                # 计算 alpha 和权重 omega
+                alpha_n = C / (em + np.array([beta_n1, beta_n2, beta_n3])) ** p
+                alpha_n_sum = np.sum(alpha_n, axis=0)
+                omega_n = alpha_n / alpha_n_sum
+
+                # 计算三个模板的通量值
+                Fh_n_c1 = (1 / 3) * F_n[j + 2] - (7 / 6) * F_n[j + 1] + (11 / 6) * F_n[j]
+                Fh_n_c2 = (-1 / 6) * F_n[j + 1] + (5 / 6) * F_n[j] + (1 / 3) * F_n[j - 1]
+                Fh_n_c3 = (1 / 3) * F_n[j] + (5 / 6) * F_n[j - 1] - (1 / 6) * F_n[j - 2]
+                Fh_n_c = np.array([Fh_n_c1, Fh_n_c2, Fh_n_c3])
+
+                # 加权组合得到 F-_{j-1/2}
+                Fh_n[j] = np.sum(omega_n * Fh_n_c, axis=0)
+
+            # 计算通量导数
+            xs_new = xs + 1  # 3
+            xt_new = xt - 1  # N-4
+
+            for j in range(xs_new, xt_new + 1):
+                Fx_p[j] = (Fh_p[j] - Fh_p[j - 1]) / dx
+                Fx_n[j] = (Fh_n[j + 1] - Fh_n[j]) / dx
+                Fx[j] = Fx_p[j] + Fx_n[j]
+
+        elif flag_scs_typ == 3:
+            # 群速度控制格式
+            # 参数设置
+            xs = 1  # 起始索引
+            xt = N - 2  # 结束索引
+            em = 1e-5  # 小量防止除零
+
+            # 群速度控制参数
+            beta = 0.8  # 群速度控制因子 (0<beta<1)
+            gamma = 0.3  # 高阶修正系数
 
             for j in range(xs, xt):
-                # 使用Minmod限制器计算半网格点通量
-                mm_pos = Cal_Minmod(F_p[j] - F_p[j - 1], F_p[j + 1] - F_p[j])
-                mm_neg = Cal_Minmod(F_n[j + 1] - F_n[j], F_n[j + 2] - F_n[j + 1])
+                # 计算通量梯度比
+                # 正通量部分
+                r_p_num = F_p[j] - F_p[j - 1]
+                r_p_den = F_p[j + 1] - F_p[j] + em
+                r_p = r_p_num / r_p_den
 
-                Fh_p[j] = F_p[j] + 0.5 * mm_pos
-                Fh_n[j] = F_n[j + 1] - 0.5 * mm_neg
-                Fh[j] = Fh_p[j] + Fh_n[j]  # 总通量
+                # 负通量部分
+                r_n_num = F_n[j + 2] - F_n[j + 1]
+                r_n_den = F_n[j + 1] - F_n[j] + em
+                r_n = r_n_num / r_n_den
+
+                # 群速度控制限制器函数
+                # 正通量限制器
+                Phi_p = (r_p + beta * np.abs(r_p)) / (1 + beta * r_p + gamma * r_p ** 2)
+                # 负通量限制器
+                Phi_n = (r_n + beta * np.abs(r_n)) / (1 + beta * r_n + gamma * r_n ** 2)
+
+                # 计算半网格点通量（含群速度控制）
+                Fh_p[j] = F_p[j] + 0.5 * Phi_p * (F_p[j + 1] - F_p[j])
+                Fh_n[j] = F_n[j + 1] - 0.5 * Phi_n * (F_n[j + 1] - F_n[j])
 
             # 更新索引范围
             xs_new = xs + 1
             xt_new = xt
 
-            # 计算总通量导数
-            for j in range(xs_new, xt_new):
-                Fx[j] = (Fh[j] - Fh[j - 1]) / dx
-
-        elif flag_scs_typ == 3:
-            # 3 - WENO格式 (Jiang & Shu, 1996, 5阶)
-            # 参数设置
-            C = np.array([0.1, 0.6, 0.3])  # 理想权重
-            p = 2  # 权重指数
-            em = 1e-6  # 小量防止除零
-
-            # 初始化
-            xs = 3  # 起始索引
-            xt = N - 1 - xs + 1  # 结束索引
-
-            for j in range(xs, xt):
-                # === 正通量分量 (F+) ===
-                # 计算光滑指示器
-                beta_p = np.zeros(3)
-                beta_p[0] = (0.25 * (F_p[j - 2] - 4 * F_p[j - 1] + 3 * F_p[j]) ** 2 +
-                             (13 / 12) * (F_p[j - 2] - 2 * F_p[j - 1] + F_p[j]) ** 2)
-                beta_p[1] = (0.25 * (F_p[j - 1] - F_p[j + 1]) ** 2 +
-                             (13 / 12) * (F_p[j - 1] - 2 * F_p[j] + F_p[j + 1]) ** 2)
-                beta_p[2] = (0.25 * (3 * F_p[j] - 4 * F_p[j + 1] + F_p[j + 2]) ** 2 +
-                             (13 / 12) * (F_p[j] - 2 * F_p[j + 1] + F_p[j + 2]) ** 2)
-
-                # 计算权重
-                alpha_p = C / (em + beta_p) ** p
-                alpha_p_sum = np.sum(alpha_p)
-                omega_p = alpha_p / alpha_p_sum
-
-                # 计算三个模板的通量
-                Fh_p_c = np.zeros(3)
-                Fh_p_c[0] = (1 / 3) * F_p[j - 2] - (7 / 6) * F_p[j - 1] + (11 / 6) * F_p[j]
-                Fh_p_c[1] = -(1 / 6) * F_p[j - 1] + (5 / 6) * F_p[j] + (1 / 3) * F_p[j + 1]
-                Fh_p_c[2] = (1 / 3) * F_p[j] + (5 / 6) * F_p[j + 1] - (1 / 6) * F_p[j + 2]
-
-                # 加权组合得到F+(j+1/2)
-                Fh_p[j] = np.dot(omega_p, Fh_p_c)
-
-                # === 负通量分量 (F-) ===
-                # 计算光滑指示器 (方向反向)
-                beta_n = np.zeros(3)
-                beta_n[0] = (0.25 * (F_n[j + 2] - 4 * F_n[j + 1] + 3 * F_n[j]) ** 2 +
-                             (13 / 12) * (F_n[j + 2] - 2 * F_n[j + 1] + F_n[j]) ** 2)
-                beta_n[1] = (0.25 * (F_n[j + 1] - F_n[j - 1]) ** 2 +
-                             (13 / 12) * (F_n[j + 1] - 2 * F_n[j] + F_n[j - 1]) ** 2)
-                beta_n[2] = (0.25 * (3 * F_n[j] - 4 * F_n[j - 1] + F_n[j - 2]) ** 2 +
-                             (13 / 12) * (F_n[j] - 2 * F_n[j - 1] + F_n[j - 2]) ** 2)
-
-                # 计算权重
-                alpha_n = C / (em + beta_n) ** p
-                alpha_n_sum = np.sum(alpha_n)
-                omega_n = alpha_n / alpha_n_sum
-
-                # 计算三个模板的通量
-                Fh_n_c = np.zeros(3)
-                Fh_n_c[0] = (1 / 3) * F_n[j + 2] - (7 / 6) * F_n[j + 1] + (11 / 6) * F_n[j]
-                Fh_n_c[1] = -(1 / 6) * F_n[j + 1] + (5 / 6) * F_n[j] + (1 / 3) * F_n[j - 1]
-                Fh_n_c[2] = (1 / 3) * F_n[j] + (5 / 6) * F_n[j - 1] - (1 / 6) * F_n[j - 2]
-
-                # 加权组合得到F-(j+1/2)
-                Fh_n[j] = np.dot(omega_n, Fh_n_c)
-
-            # 更新索引范围
-            xs_new = xs + 1
-            xt_new = xt - 1
-
             # 计算通量导数
             for j in range(xs_new, xt_new):
                 Fx_p[j] = (Fh_p[j] - Fh_p[j - 1]) / dx
-                Fx_n[j] = (Fh_n[j + 1] - Fh_n[j]) / dx
+                Fx_n[j] = (Fh_n[j] - Fh_n[j - 1]) / dx
                 Fx[j] = Fx_p[j] + Fx_n[j]
-
     return xs_new, xt_new, Fh_p, Fh_n, Fx, Fx_p, Fx_n
 
 def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ, flag_scs_typ):
@@ -846,16 +744,308 @@ def plt_Zone(filename, zone_title, IJK, Mat_Data):
             row_str = ' '.join([f'{val:.6f}' for val in Mat_Data[k]])
             f.write(row_str + '\n')
 #%% 全局变量定义
-def sod_func(P, gamma=1.4, rho_r=0.125, P_r=0.1):
-    """Sod函数的Python实现"""
-    mu_sq = (gamma - 1) / (gamma + 1)
-    term = (1 - mu_sq) ** 2 / (rho_r * (P + mu_sq * P_r))
-    return (P - P_r) * np.sqrt(term) - 2 * np.sqrt(gamma) / (gamma - 1) * (1 - P ** ((gamma - 1) / (2 * gamma)))
+def solve(left_state=(1, 1, 0), right_state=(0.1, 0.125, 0.), geometry=(-0.5, 0.5, 0), t=0.2, **kwargs):
+    """
+    Solves the Sod shock tube problem (i.e. riemann problem) of discontinuity across an interface.
+
+    :param left_state: tuple (pl, rhol, ul)
+    :param right_state: tuple (pr, rhor, ur)
+    :param geometry: tuple (xl, xr, xi): xl - left boundary, xr - right boundary, xi - initial discontinuity
+    :param t: time for which the states have to be calculated
+    :param gamma: ideal gas constant, default is air: 1.4
+    :param npts: number of points for array of pressure, density and velocity
+    :param dustFrac: dust to gas fraction, should be >=0 and <1
+    :return: tuple of: dicts of positions, regions, and val_dict with arrays of x, p, rho, u
+    """
+
+    if 'npts' in kwargs:
+        npts = kwargs['npts']
+    else:
+        npts = 500
+
+    if 'gamma' in kwargs:
+        gamma = kwargs['gamma']
+    else:
+        gamma = 1.4
+
+    if 'dustFrac' in kwargs:
+        dustFrac = kwargs['dustFrac']
+        if dustFrac < 0 or dustFrac >= 1:
+            print('Invalid dust fraction value: {}. Should be >=0 and <1. Set to default: 0'.format(dustFrac))
+            dustFrac = 0
+    else:
+        dustFrac = 0
+
+    calculator = Calculator(left_state=left_state, right_state=right_state, geometry=geometry, t=t,
+                            gamma=gamma, npts=npts, dustFrac=dustFrac)
+
+    return calculator.solve()
+
+
+class Calculator:
+    """
+    Class that does the actual work computing the Sod shock tube problem
+    """
+
+    def __init__(self, left_state, right_state, geometry, t, **kwargs):
+        """
+        Constructor
+        :param left_state: tuple (pl, rhol, ul)
+        :param right_state: tuple (pr, rhor, ur)
+        :param geometry: tuple (xl, xr, xi): xl - left boundary, xr - right boundary, xi - initial discontinuity
+        :param t: time for which the states have to be calculated
+        :param gamma: ideal gas constant, default is air: 1.4
+        :param npts: number of points for array of pressure, density and velocity
+        :param dustFrac: dust fraction
+        """
+        self.pl, self.rhol, self.ul = left_state
+        self.pr, self.rhor, self.ur = right_state
+        self.xl, self.xr, self.xi = geometry
+        self.t = t
+
+        if 'npts' in kwargs:
+            self.npts = kwargs['npts']
+        else:
+            self.npts = 500
+
+        if 'gamma' in kwargs:
+            self.gamma = kwargs['gamma']
+        else:
+            self.gamma = 1.4
+
+        if 'dustFrac' in kwargs:
+            self.dustFrac = kwargs['dustFrac']
+        else:
+            self.dustFrac = 0
+
+        # basic checking
+        if self.xl >= self.xr:
+            print('xl has to be less than xr!')
+            exit()
+        if self.xi >= self.xr or self.xi <= self.xl:
+            print('xi has in between xl and xr!')
+            exit()
+
+        # calculate regions
+        self.region1, self.region3, self.region4, self.region5, self.w = \
+            self.calculate_regions()
+
+    def solve(self):
+        """
+        Actually solves the sod shock tube problem
+        :return: positions, regions, val_dict
+        """
+        regions = self.region_states()
+
+        # calculate positions
+        x_positions = self.calc_positions()
+
+        pos_description = ('Head of Rarefaction', 'Foot of Rarefaction',
+                           'Contact Discontinuity', 'Shock')
+        positions = dict(zip(pos_description, x_positions))
+
+        # create arrays
+        x, p, rho, u = self.create_arrays(x_positions)
+
+        val_names = ('x', 'p', 'rho', 'u')
+        val_dict = dict(zip(val_names, (x, p, rho, u)))
+
+        return positions, regions, val_dict
+
+    def sound_speed(self, p, rho):
+        """
+        Calculate speed of sound considering dust fraction
+        """
+        return np.sqrt(self.gamma * (1 - self.dustFrac) * p / rho)
+
+    def shock_tube_function(self, p4, p1, p5, rho1, rho5):
+        """
+        Shock tube equation
+        """
+        z = (p4 / p5 - 1.)
+        c1 = self.sound_speed(p1, rho1)
+        c5 = self.sound_speed(p5, rho5)
+
+        gm1 = self.gamma - 1.
+        gp1 = self.gamma + 1.
+        g2 = 2. * self.gamma
+
+        fact = gm1 / g2 * (c5 / c1) * z / np.sqrt(1. + gp1 / g2 * z)
+        fact = (1. - fact) ** (g2 / gm1)
+
+        return p1 * fact - p4
+
+    def calculate_regions(self):
+        """
+        Compute regions
+        :return: p, rho and u for regions 1,3,4,5 and shock speed
+        """
+        # if pl > pr...
+        rho1 = self.rhol
+        p1 = self.pl
+        u1 = self.ul
+        rho5 = self.rhor
+        p5 = self.pr
+        u5 = self.ur
+
+        # unless...
+        if self.pl < self.pr:
+            rho1 = self.rhor
+            p1 = self.pr
+            u1 = self.ur
+            rho5 = self.rhol
+            p5 = self.pl
+            u5 = self.ul
+
+        # solve for post-shock pressure
+        num_of_guesses = 100
+        pressure_range = np.linspace(min(self.pr, self.pl), max(self.pr, self.pl), num_of_guesses)
+
+        ier = 0
+        for pguess in pressure_range:
+            res = fsolve(self.shock_tube_function, pguess, args=(p1, p5, rho1, rho5), full_output=True)
+            p4, infodict, ier, mesg = res
+            if ier == 1:
+                break
+        if not ier == 1:
+            raise Exception("Analytical Sod solution unsuccessful!")
+
+        if type(p4) is np.ndarray:
+            p4 = p4[0]
+
+        # compute post-shock density and velocity
+        z = (p4 / p5 - 1.)
+        c5 = self.sound_speed(p5, rho5)
+
+        gm1 = self.gamma - 1.
+        gp1 = self.gamma + 1.
+        gmfac1 = 0.5 * gm1 / self.gamma
+        gmfac2 = 0.5 * gp1 / self.gamma
+
+        fact = np.sqrt(1. + gmfac2 * z)
+
+        u4 = c5 * z / (self.gamma * fact)
+        rho4 = rho5 * (1. + gmfac2 * z) / (1. + gmfac1 * z)
+
+        # shock speed
+        w = c5 * fact
+
+        # compute values at foot of rarefaction
+        p3 = p4
+        u3 = u4
+        rho3 = rho1 * (p3 / p1) ** (1. / self.gamma)
+        return (p1, rho1, u1), (p3, rho3, u3), (p4, rho4, u4), (p5, rho5, u5), w
+
+    def region_states(self):
+        """
+        :return: dictionary of regions
+        """
+        if self.pl > self.pr:
+            return {'Region 1': self.region1,
+                    'Region 2': 'RAREFACTION',
+                    'Region 3': self.region3,
+                    'Region 4': self.region4,
+                    'Region 5': self.region5}
+        else:
+            return {'Region 1': self.region5,
+                    'Region 2': self.region4,
+                    'Region 3': self.region3,
+                    'Region 4': 'RAREFACTION',
+                    'Region 5': self.region1}
+
+    def calc_positions(self):
+        """
+        :return: tuple of positions (head of rarefaction, foot of rarefaction, contact discontinuity, shock)
+        """
+        p1, rho1 = self.region1[:2]  # don't need velocity
+        p3, rho3, u3 = self.region3[:]
+        c1 = self.sound_speed(p1, rho1)
+        c3 = self.sound_speed(p3, rho3)
+        if self.pl > self.pr:
+            xsh = self.xi + self.w * self.t
+            xcd = self.xi + u3 * self.t
+            xft = self.xi + (u3 - c3) * self.t
+            xhd = self.xi - c1 * self.t
+        else:
+            # pr > pl
+            xsh = self.xi - self.w * self.t
+            xcd = self.xi - u3 * self.t
+            xft = self.xi - (u3 - c3) * self.t
+            xhd = self.xi + c1 * self.t
+
+        return xhd, xft, xcd, xsh
+
+    def create_arrays(self, positions):
+        """
+        :return: arrays of x, p, rho and u values
+        """
+        xhd, xft, xcd, xsh = positions
+        p1, rho1, u1 = self.region1
+        p3, rho3, u3 = self.region3
+        p4, rho4, u4 = self.region4
+        p5, rho5, u5 = self.region5
+        gm1 = self.gamma - 1.
+        gp1 = self.gamma + 1.
+
+        x_arr = np.linspace(self.xl, self.xr, self.npts)
+        rho = np.zeros(self.npts, dtype=float)
+        p = np.zeros(self.npts, dtype=float)
+        u = np.zeros(self.npts, dtype=float)
+        c1 = self.sound_speed(p1, rho1)
+
+        if self.pl > self.pr:
+            for i, x in enumerate(x_arr):
+                if x < xhd:
+                    rho[i] = rho1
+                    p[i] = p1
+                    u[i] = u1
+                elif x < xft:
+                    u[i] = 2. / gp1 * (c1 + (x - self.xi) / self.t)
+                    fact = 1. - 0.5 * gm1 * u[i] / c1
+                    rho[i] = rho1 * fact ** (2. / gm1)
+                    p[i] = p1 * fact ** (2. * self.gamma / gm1)
+                elif x < xcd:
+                    rho[i] = rho3
+                    p[i] = p3
+                    u[i] = u3
+                elif x < xsh:
+                    rho[i] = rho4
+                    p[i] = p4
+                    u[i] = u4
+                else:
+                    rho[i] = rho5
+                    p[i] = p5
+                    u[i] = u5
+        else:
+            for i, x in enumerate(x_arr):
+                if x < xsh:
+                    rho[i] = rho5
+                    p[i] = p5
+                    u[i] = -u1
+                elif x < xcd:
+                    rho[i] = rho4
+                    p[i] = p4
+                    u[i] = -u4
+                elif x < xft:
+                    rho[i] = rho3
+                    p[i] = p3
+                    u[i] = -u3
+                elif x < xhd:
+                    u[i] = -2. / gp1 * (c1 + (self.xi - x) / self.t)
+                    fact = 1. + 0.5 * gm1 * u[i] / c1
+                    rho[i] = rho1 * fact ** (2. / gm1)
+                    p[i] = p1 * fact ** (2. * self.gamma / gm1)
+                else:
+                    rho[i] = rho1
+                    p[i] = p1
+                    u[i] = -u1
+
+        return x_arr, p, rho, u
+
+
 def analytic_sod(t=0.2):
     """
     计算Sod激波管问题的解析解
-
-    参考: "http://www.phys.lsu.edu/~tohline/PHYS7412/sod.html"
 
     参数:
     t -- 时间(默认为0.2)
@@ -863,94 +1053,40 @@ def analytic_sod(t=0.2):
     返回:
     data -- 包含x, rho, P, u, e数组的字典
     """
-    # 初始条件
-    x0 = 0.0
-    rho_l = 1.0
-    P_l = 1.0
-    u_l = 0.0
+    # 设置初始条件和几何参数
+    left_state = (1.0, 1.0, 0.0)  # (P_l, rho_l, u_l)
+    right_state = (0.1, 0.125, 0.0)  # (P_r, rho_r, u_r)
+    geometry = (-0.5, 0.5, 0.0)  # (x_left, x_right, x_initial)
+    gamma = 1.4  # 比热比
 
-    rho_r = 0.125
-    P_r = 0.1
-    u_r = 0.0
+    # 使用solve函数计算解析解
+    positions, regions, val_dict = solve(
+        left_state=left_state,
+        right_state=right_state,
+        geometry=geometry,
+        t=t,
+        npts=1000,
+        gamma=gamma
+    )
 
-    gamma = 1.4
-    mu_sq = (gamma - 1) / (gamma + 1)
+    # 提取计算结果
+    x = val_dict['x']
+    rho = val_dict['rho']
+    p = val_dict['p']  # 压力
+    u = val_dict['u']  # 速度
 
-    # 计算声速
-    c_l = np.sqrt(gamma * P_l / rho_l)
-    c_r = np.sqrt(gamma * P_r / rho_r)
+    # 计算比内能 e = P / ((γ-1)ρ)
+    e = p / ((gamma - 1) * rho)
 
-    # 求解 P_post (激波后的压力)
-    P_post = fsolve(sod_func, np.pi, args=(gamma, rho_r, P_r))[0]
-
-    # 计算中间状态量
-    v_post = 2 * np.sqrt(gamma) / (gamma - 1) * (1 - P_post ** ((gamma - 1) / (2 * gamma)))
-    rho_post = rho_r * ((P_post / P_r) + mu_sq) / (1 + mu_sq * (P_post / P_r))
-    v_shock = v_post * (rho_post / rho_r) / ((rho_post / rho_r) - 1)
-    rho_middle = rho_l * (P_post / P_l) ** (1 / gamma)
-
-    # 计算关键位置
-    x1 = x0 - c_l * t
-    x3 = x0 + v_post * t
-    x4 = x0 + v_shock * t
-    c_2 = c_l - ((gamma - 1) / 2) * v_post
-    x2 = x0 + (v_post - c_2) * t
-
-    # 设置空间点
-    n_points = 1000
-    x_min = -0.5
-    x_max = 0.5
-    x = np.linspace(x_min, x_max, n_points)
-
-    # 初始化数据数组
-    data = {
+    # 返回与原始analytic_sod函数相同格式的字典
+    return {
         'x': x,
-        'rho': np.zeros(n_points),
-        'P': np.zeros(n_points),
-        'u': np.zeros(n_points),
-        'e': np.zeros(n_points)
+        'rho': rho,
+        'P': p,  # 保持大写P表示压力
+        'u': u,
+        'e': e
     }
-
-    # 计算每个点的物理量
-    for i in range(n_points):
-        x_val = x[i]
-
-        if x_val < x1:
-            # 区域 I: x < x1 (左波前)
-            data['rho'][i] = rho_l
-            data['P'][i] = P_l
-            data['u'][i] = u_l
-
-        elif x1 <= x_val <= x2:
-            # 区域 II: x1 <= x <= x2 (膨胀波区)
-            c = mu_sq * ((x0 - x_val) / t) + (1 - mu_sq) * c_l
-            data['rho'][i] = rho_l * (c / c_l) ** (2 / (gamma - 1))
-            data['P'][i] = P_l * (data['rho'][i] / rho_l) ** gamma
-            data['u'][i] = (1 - mu_sq) * (-(x0 - x_val) / t + c_l)
-
-        elif x2 <= x_val <= x3:
-            # 区域 III: x2 <= x <= x3 (激波后的稳定区)
-            data['rho'][i] = rho_middle
-            data['P'][i] = P_post
-            data['u'][i] = v_post
-
-        elif x3 <= x_val <= x4:
-            # 区域 IV: x3 <= x <= x4 (接触间断区)
-            data['rho'][i] = rho_post
-            data['P'][i] = P_post
-            data['u'][i] = v_post
-
-        else:  # x_val > x4
-            # 区域 V: x > x4 (右波前)
-            data['rho'][i] = rho_r
-            data['P'][i] = P_r
-            data['u'][i] = u_r
-
-        # 计算比内能
-        data['e'][i] = data['P'][i] / ((gamma - 1) * data['rho'][i])
-
-    return data
-# 管道特征长度 (x = [-L/2, L/2])
+#管道特征长度 (x = [-L/2, L/2])
 L = 1.0
 
 # 流动参数
@@ -983,16 +1119,10 @@ c = np.zeros(N)
 dt = 0.001
 
 # 最大计算步数
-max_step = 100
+max_step = 200
 
 # 最大模拟时间
 max_tot_time = max_step * dt
-
-#%% 预处理：输入/输出文件设置
-# # 设置全局输入/输出文件夹路径
-# savefolder = f'Program_Sod_Shock_Tube_MaxTime_{max_tot_time:.3f}'  # 文件夹名称
-# save_output_folder = os.path.join('.', savefolder, '')  # 完整路径
-# os.makedirs(save_output_folder, exist_ok=True)  # 创建文件夹(如果不存在)
 
 #%% 设置初始条件
 # 当x < 0时，(左侧: ul, rhol, pl) = (0.0, 1.0, 1.0)
@@ -1001,7 +1131,7 @@ u_arr[0:xp_mid-1] = 0.0
 rho_arr[0:xp_mid-1] = 1.0
 p_arr[0:xp_mid-1] = 1.0
 
-u_arr[xp_mid-1:] = 0.0    # Python使用0-based索引
+u_arr[xp_mid-1:] = 0.0
 rho_arr[xp_mid-1:] = 0.125
 p_arr[xp_mid-1:] = 0.1
 
@@ -1028,31 +1158,17 @@ class SpatialDiscretizationType(Enum):
     UPWIND_COMPACT = 1   # 迎风/紧致格式
     SHOCK_CAPTURING = 2  # 激波捕捉格式
 
-class UpwindSchemeType(Enum):
-    """迎风格式类型枚举"""
-    FIRST_ORDER = 1   # 一阶格式
-    SECOND_ORDER = 2  # 二阶格式
-    THIRD_ORDER = 3   # 三阶格式
-    FIFTH_ORDER = 4   # 五阶格式
-
 class ShockCapturingScheme(Enum):
     """激波捕捉格式枚举"""
     TVD_VAN_LEER = 1  # TVD格式(Van Leer限制器)
-    NND = 2           # NND格式
-    WENO = 3          # WENO格式
+    WENO = 2          # 5阶WENO格式
+    GVC = 3           #群速度控制格式
 
-class TimeMarchingMethod(Enum):
-    """时间推进方法枚举"""
-    EULER = 1         # 欧拉法
-    TRAPEZOIDAL = 2   # 梯形法
-    RK2 = 3           # 二阶Runge-Kutta法
-    TVD_RK3 = 4       # 三阶TVD Runge-Kutta法
-    RK4 = 5           # 四阶Runge-Kutta法
 
 # 指定通量分裂方法
 # 1 - 通量向量分裂(FVS)
 # 2 - 通量差分裂(FDS)
-flag_flu_spl = FluxSplittingMethod.FVS.value  # 这里选择FVS方法
+flag_flu_spl = FluxSplittingMethod.FDS.value  # 这里选择FVS方法
 
 # FVS方法家族选择
 # 1 - Steger-Warming (S-W)
@@ -1070,53 +1186,10 @@ flag_flu_rec = 1  # 选择直接重构
 flag_fds_met = FDSMethods.ROE.value
 
 # 指定高分辨率通量空间离散格式
-flag_spa_typ = SpatialDiscretizationType.UPWIND_COMPACT.value  # 迎风/紧致格式
-
-# 迎风格式类型选择
-flag_upw_typ = UpwindSchemeType.FIRST_ORDER.value  # 一阶迎风格式
+flag_spa_typ = SpatialDiscretizationType.SHOCK_CAPTURING.value  # 激波捕捉格式
 
 # 激波捕捉格式类型选择
-flag_scs_typ = ShockCapturingScheme.TVD_VAN_LEER.value  # TVD格式(Van Leer限制器)
-
-# 指定时间推进方法
-flag_tim_mar = TimeMarchingMethod.TVD_RK3.value  # 三阶TVD Runge-Kutta法
-
-# # 区域标题设置(用于结果输出)
-# zone_title_FVM = ["FVS", "FDS"]  # 通量分裂方法
-# zone_title_FVS = ["S-W", "L-F", "Van Leer", "AUSM"]  # FVS方法
-# zone_title_FDS = ["Roe"]  # FDS方法
-# zone_title_SPA = ["UPW", "SCS"]  # 空间离散格式
-# zone_title_UPW = ["1_od", "2_od", "3_od", "5_od"]  # 迎风格式
-# zone_title_SCS = ["TVD (VL Limiter)", "NND", "WENO (5_od)"]  # 激波捕捉格式
-# zone_title_MAR = ["Euler", "Trape", "R-K (2_od)", "R-K (3_od TVD)", "R-K (4_od)"]  # 时间推进方法
-#
-# # %% 根据算法选项生成组合标题字符串
-# # 生成通量分裂方法组合标题
-# if flag_flu_spl == 1:  # FVS方法
-#     # 组合标题: "FVS_方法名"
-#     zone_title_FVM_comb = f"{zone_title_FVM[flag_flu_spl - 1]}_{zone_title_FVS[flag_fvs_met - 1]}"
-# elif flag_flu_spl == 2:  # FDS方法
-#     # 组合标题: "FDS_方法名"
-#     zone_title_FVM_comb = f"{zone_title_FVM[flag_flu_spl - 1]}_{zone_title_FDS[flag_fds_met - 1]}"
-#
-# # 生成空间离散方法组合标题
-# if flag_spa_typ == 1:  # 迎风/紧致格式
-#     # 组合标题: "UPW_格式名"
-#     zone_title_SPA_comb = f"{zone_title_SPA[flag_spa_typ - 1]}_{zone_title_UPW[flag_upw_typ - 1]}"
-# elif flag_spa_typ == 2:  # 激波捕捉格式
-#     # 组合标题: "SCS_格式名"
-#     zone_title_SPA_comb = f"{zone_title_SPA[flag_spa_typ - 1]}_{zone_title_SCS[flag_scs_typ - 1]}"
-#
-# # 生成时间推进方法标题
-# zone_title_MAR_comb = zone_title_MAR[flag_tim_mar - 1]
-#
-# # 生成完整的组合标题
-# zone_title_comb = f"{zone_title_FVM_comb}_{zone_title_SPA_comb}_{zone_title_MAR_comb}"
-#
-# # %% 导出动画设置
-# flag_exp_mov = 0  # 是否导出视频文件标志
-# flag_exp_avi = 0  # 是否导出AVI格式标志
-# flag_exp_gif = 1  # 是否导出GIF动画标志
+flag_scs_typ = ShockCapturingScheme.GVC.value  # TVD格式(Van Leer限制器)
 
 # %% 数组初始化
 lambda_arr = np.zeros(3)  # 特征值矩阵
@@ -1161,29 +1234,6 @@ for i in range(N):
     T[i] = T_val
     c[i] = c_val
 
-# # %% 动画设置
-# # 创建帧存储结构（MATLAB的struct在Python中不直接对应）
-# # F = struct('cdata',[],'colormap',[]);
-# # Python中我们将使用字典模拟
-# F = {'cdata': None, 'colormap': None}
-#
-# # 导出路径设置
-# if flag_exp_avi == 1:
-#     # 导入视频编码库
-#     import matplotlib.animation as animation
-#
-#     # 准备视频文件路径
-#     avi_path = os.path.join(save_output_folder, 'Sod_Shock_Tube.avi')
-#
-#     # 创建视频写入器对象
-#     # 对应MATLAB的: avi_obj = VideoWriter([save_output_folder, 'Sod_Shock_Tube.avi'], 'Motion JPEG AVI');
-#     # 使用MPEG-4编码，高质量
-#     avi_writer = animation.FFMpegWriter(
-#         fps=100,  # 帧率
-#         codec='libx264',  # H.264编码
-#         bitrate=-1,  # 自动选择码率
-#         extra_args=['-crf', '18']  # 高质量设置
-#     )
 # %% 开始计算和时间步进
 # 实际计算时间
 t = 0.0
@@ -1196,302 +1246,99 @@ while cnt_step < max_step:
     t += dt
     cnt_step += 1
 
-    # 时间离散格式选择
-    if flag_tim_mar == 1:
-        # 1 - 欧拉时间步进法
+    # 时间离散格式选择三阶TVD龙格-库塔法
+    if flag_flu_spl == 1:
+        # 1 - 通量向量分裂法 (FVS)
+        F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ)
 
-        if flag_flu_spl == 1:
-            # 1 - 通量向量分裂法 (FVS)
-            F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            xs_new, xt_new, Fh_p, Fh_n, Fx, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ,
-                                                                          flag_scs_typ)
+        # 第一步: U1 = U^n + Δt * Q(U^n)
+        U_1 = U + (dt * ((-1) * Fx))
 
-        elif flag_flu_spl == 2:
-            # 2 - 通量差分裂法 (FDS)
-            xs_new, xt_new, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,
-                                                        flag_upw_typ, flag_scs_typ)
+        # 使用U1计算Q(U1)
+        F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        _, _, _, _, Fx_1, _, _ = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_scs_typ)
 
-        # 欧拉更新: U^{n+1} = U^n + Δt * (-dF/dx)
-        U = U + (dt * ((-1) * Fx))  # 右端项 Q(U) = (-1) * Fx
+        # 第二步: U2 = (3/4)U^n + (1/4)U1 + (1/4)Δt * Q(U1)
+        U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
 
-    elif flag_tim_mar == 2:
-        # 2 - 梯形法 (二阶改进欧拉法)
+        # 使用U2计算Q(U2)
+        F_p_2, F_n_2 = Flux_Vect_Split_Common(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        xs_new, xt_new, Fh_p, Fh_n, Fx_2, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_2, F_n_2, flag_spa_typ, flag_scs_typ)
 
-        if flag_flu_spl == 1:
-            # 1 - 通量向量分裂法 (FVS)
-            F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ)
+        # 最终更新: U^{n+1} = (1/3)U^n + (2/3)U2 + (2/3)Δt * Q(U2)
+        U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
 
-            # 第一步: 欧拉预估
-            U_1 = U + (dt * ((-1) * Fx))
+    elif flag_flu_spl == 2:
+        # 2 - 通量差分裂法 (FDS)
+        _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,flag_scs_typ)
 
-            # 使用预测值计算新通量
-            F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            xs_new, xt_new, Fh_p, Fh_n, Fx_1, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ,
-                                                                            flag_upw_typ, flag_scs_typ)
 
-            # 梯形更新: U^{n+1} = 0.5*U^n + 0.5*U_1 + 0.5*Δt * Q(U_1)
-            U = (0.5 * U) + (0.5 * U_1) + ((0.5 * dt) * ((-1) * Fx_1))
+        # 第一步
+        U_1 = U + (dt * ((-1) * Fx))
+        _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,flag_scs_typ)
 
-        elif flag_flu_spl == 2:
-            # 2 - 通量差分裂法 (FDS)
-            _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                              flag_scs_typ)
 
-            # 第一步: 欧拉预估
-            U_1 = U + (dt * ((-1) * Fx))
+        # 第二步
+        U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
+        xs_new, xt_new, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,flag_scs_typ)
 
-            # 使用预测值计算新通量
-            xs_new, xt_new, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,
-                                                          flag_upw_typ, flag_scs_typ)
 
-            # 梯形更新
-            U = (0.5 * U) + (0.5 * U_1) + ((0.5 * dt) * ((-1) * Fx_1))
+        # 最终更新
+        U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
 
-    elif flag_tim_mar == 3:
-        # 3 - 二阶龙格-库塔法 (Heun公式)
-
-        if flag_flu_spl == 1:
-            # 1 - 通量向量分裂法 (FVS)
-            F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第一步: U1 = U^n + (Δt/3) * Q(U^n)
-            U_1 = U + ((dt / 3) * ((-1) * Fx))
-
-            # 使用U1计算Q(U1)
-            F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx_1, _, _ = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第二步: U2 = U^n + (2Δt/3) * Q(U1)
-            U_2 = U + (((2 * dt) / 3) * ((-1) * Fx_1))
-
-            # 使用U2计算Q(U2)
-            F_p_2, F_n_2 = Flux_Vect_Split_Common(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            xs_new, xt_new, Fh_p, Fh_n, Fx_2, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_2, F_n_2, flag_spa_typ,
-                                                                            flag_upw_typ, flag_scs_typ)
-
-            # 最终更新: U^{n+1} = (1/4)U^n + (3/4)U1 + (3/4)Δt * Q(U2)
-            U = ((1 / 4) * U) + ((3 / 4) * U_1) + (((3 / 4) * dt) * ((-1) * Fx_2))
-
-        elif flag_flu_spl == 2:
-            # 2 - 通量差分裂法 (FDS)
-            _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                              flag_scs_typ)
-
-            # 第一步
-            U_1 = U + ((dt / 3) * ((-1) * Fx))
-            _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                                flag_scs_typ)
-
-            # 第二步
-            U_2 = U + (((2 * dt) / 3) * ((-1) * Fx_1))
-            xs_new, xt_new, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,
-                                                          flag_upw_typ, flag_scs_typ)
-
-            # 最终更新
-            U = ((1 / 4) * U) + ((3 / 4) * U_1) + (((3 / 4) * dt) * ((-1) * Fx_2))
-
-    elif flag_tim_mar == 4:
-        # 4 - 三阶TVD龙格-库塔法
-
-        if flag_flu_spl == 1:
-            # 1 - 通量向量分裂法 (FVS)
-            F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第一步: U1 = U^n + Δt * Q(U^n)
-            U_1 = U + (dt * ((-1) * Fx))
-
-            # 使用U1计算Q(U1)
-            F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx_1, _, _ = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第二步: U2 = (3/4)U^n + (1/4)U1 + (1/4)Δt * Q(U1)
-            U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
-
-            # 使用U2计算Q(U2)
-            F_p_2, F_n_2 = Flux_Vect_Split_Common(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            xs_new, xt_new, Fh_p, Fh_n, Fx_2, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_2, F_n_2, flag_spa_typ,
-                                                                            flag_upw_typ, flag_scs_typ)
-
-            # 最终更新: U^{n+1} = (1/3)U^n + (2/3)U2 + (2/3)Δt * Q(U2)
-            U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
-
-        elif flag_flu_spl == 2:
-            # 2 - 通量差分裂法 (FDS)
-            _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                              flag_scs_typ)
-
-            # 第一步
-            U_1 = U + (dt * ((-1) * Fx))
-            _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                                flag_scs_typ)
-
-            # 第二步
-            U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
-            xs_new, xt_new, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,
-                                                          flag_upw_typ, flag_scs_typ)
-
-            # 最终更新
-            U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
-
-    elif flag_tim_mar == 5:
-        # 5 - 四阶龙格-库塔法
-
-        if flag_flu_spl == 1:
-            # 1 - 通量向量分裂法 (FVS)
-            F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第一步: U1 = U^n + (1/2)Δt * Q(U^n)
-            U_1 = U + ((1 / 2) * (dt * ((-1) * Fx)))
-
-            # 使用U1计算Q(U1)
-            F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx_1, _, _ = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第二步: U2 = U^n + (1/2)Δt * Q(U1)
-            U_2 = U + ((1 / 2) * (dt * ((-1) * Fx_1)))
-
-            # 使用U2计算Q(U2)
-            F_p_2, F_n_2 = Flux_Vect_Split_Common(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            _, _, _, _, Fx_2, _, _ = Diff_Cons_Common(N, dx, F_p_2, F_n_2, flag_spa_typ, flag_upw_typ, flag_scs_typ)
-
-            # 第三步: U3 = U^n + Δt * Q(U2)
-            U_3 = U + (dt * ((-1) * Fx_2))
-
-            # 使用U3计算Q(U3)
-            F_p_3, F_n_3 = Flux_Vect_Split_Common(U_3, N, Gamma, Cp, Cv, R, flag_fvs_met)
-            xs_new, xt_new, Fh_p, Fh_n, Fx_3, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_3, F_n_3, flag_spa_typ,
-                                                                            flag_upw_typ, flag_scs_typ)
-
-            # 最终更新: U^{n+1} = (1/3)[-U^n + U1 + 2U2 + U3] + (1/6)Δt * Q(U3)
-            U = ((1 / 3) * (((-1) * U) + U_1 + (2 * U_2) + U_3)) + ((1 / 6) * dt * ((-1) * Fx_3))
-
-        elif flag_flu_spl == 2:
-            # 2 - 通量差分裂法 (FDS)
-            _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                              flag_scs_typ)
-
-            # 第一步
-            U_1 = U + ((1 / 2) * (dt * ((-1) * Fx)))
-            _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                                flag_scs_typ)
-
-            # 第二步
-            U_2 = U + ((1 / 2) * (dt * ((-1) * Fx_1)))
-            _, _, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_upw_typ,
-                                                flag_scs_typ)
-
-            # 第三步
-            U_3 = U + (dt * ((-1) * Fx_2))
-            xs_new, xt_new, Fx_3 = Flux_Diff_Split_Common(U_3, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ,
-                                                          flag_upw_typ, flag_scs_typ)
-
-            # 最终更新
-            U = ((1 / 3) * (((-1) * U) + U_1 + (2 * U_2) + U_3)) + ((1 / 6) * dt * ((-1) * Fx_3))
-
-# if flag_exp_mov == 1:
-#     # 保存时间t_final时刻的最终解U
-#     U_tem = U.copy()  # 使用副本避免修改原数据
-#
-#     # 计算时间t_final时刻的最终物理量
-#     # 根据守恒变量U计算rho, u, E, T, p, c, H
-#     rho_tem = U_tem[:, 0]  # 密度
-#     u_tem = U_tem[:, 1] / rho_tem  # 速度
-#     E_tem = U_tem[:, 2]  # 单位质量总内能
-#     # 计算温度: T = (e_total - 0.5*u²) / Cv
-#     T_tem = (E_tem / rho_tem - 0.5 * u_tem ** 2) / Cv
-#     # 计算压力: p = ρRT
-#     p_tem = rho_tem * R * T_tem
-#     # 计算声速: c = √(γp/ρ)
-#     c_tem = np.sqrt(Gamma * p_tem / rho_tem)
-#     # 计算焓: H = 0.5*u² + Cp*T
-#     H_tem = 0.5 * u_tem ** 2 + Cp * T_tem
-#     # 计算内能: e = E/ρ - 0.5*u²
-#     e_tem = E_tem / rho_tem - 0.5 * u_tem ** 2
-#
-#     # data_tem = analytic_sod(t)  # 调用analytic_sod.m函数获取解析解(保留原函数名)
-#
-#     # 监测物理量
-#     if cnt_step == 1:
-#         # 创建图形对象
-#         fig, ax = plt.subplots(3, 1, figsize=(10, 8))
-#         fig.canvas.manager.set_window_title('Sod激波管模拟')
-#         plt.tight_layout(pad=3.0)
-#
-#         # 调用绘图函数Plot_Props (保留原函数名)
-#         Plot_Props(t, xp, rho_tem, p_tem, u_tem, e_tem, fig, ax)
-#
-#         # 捕获帧
-#         if flag_exp_mov == 1:
-#             fig.canvas.draw()
-#             frame_data = np.array(fig.canvas.renderer.buffer_rgba())
-#             F = {'cdata': frame_data, 'colormap': None}
-#
-#         # 导出视频
-#         if flag_exp_avi == 1:
-#             # 将帧添加到预创建的.avi文件句柄
-#             avi_writer.grab_frame()
-#
-#         # 导出GIF图片
-#         if flag_exp_gif == 1:
-#             # 转换为PIL图像
-#             im = Image.fromarray(frame_data)
-#             # 转换为索引模式
-#             if im.mode != 'P':
-#                 im = im.convert('P', palette=Image.ADAPTIVE, colors=256)
-#             # 保存GIF帧(使用原始MATLAB参数)
-#             im.save(
-#                 os.path.join(save_output_folder, 'Sod_Shock_Tube.gif'),
-#                 format='GIF',
-#                 save_all=False,
-#                 loop=0,  # 无限循环
-#                 append=True if cnt_step > 1 else False,
-#                 duration=100  # 0.1秒帧率
-#             )
-#
-#     else:
-#         # 更新图形
-#         Plot_Props(t, xp, rho_tem, p_tem, u_tem, e_tem, fig, ax)
-#
-#         # 强制刷新绘图
-#         plt.draw()
-#         plt.pause(0.001)
-#
-#         # 捕获帧
-#         if flag_exp_mov == 1:
-#             fig.canvas.draw()
-#             frame_data = np.array(fig.canvas.renderer.buffer_rgba())
-#             F = {'cdata': frame_data, 'colormap': None}
-#
-#         # 导出视频
-#         if flag_exp_avi == 1:
-#             # 将帧添加到预创建的.avi文件句柄
-#             avi_writer.grab_frame()
-#
-#         # 导出GIF图片
-#         if flag_exp_gif == 1:
-#             # 转换为PIL图像
-#             im = Image.fromarray(frame_data)
-#             # 转换为索引模式
-#             if im.mode != 'P':
-#                 im = im.convert('P', palette=Image.ADAPTIVE, colors=256)
-#             # 保存GIF帧(追加模式)
-#             im.save(
-#                 os.path.join(save_output_folder, 'Sod_Shock_Tube.gif'),
-#                 format='GIF',
-#                 save_all=False,
-#                 append=True,  # 追加模式
-#                 duration=100  # 0.1秒帧率
-#             )
-#%% 后处理
-
-# # 关闭.avi文件句柄
-# if flag_exp_avi == 1:
-#
-#     avi_writer.finish()  # 关闭并完成视频写入
+    # if cnt_step % 10==0:
+    #     # 创建结果图（添加背景色）
+    #     h = plt.figure(figsize=(10, 8), facecolor='white')
+    #
+    #     # Subplot 1: 密度
+    #     ax1 = plt.subplot(2, 2, 1)
+    #     ax1.set_title(f"Density Distribution (t = {t:.3f} s)")
+    #     ax1.plot(xp, U[:, 0], 'bo', markersize=3, label='Numerical Solution', alpha=0.7)
+    #     ax1.legend(fontsize=9)
+    #     ax1.set_xlabel('Position (m)', fontsize=10)
+    #     ax1.set_ylabel('Density (kg/m³)', fontsize=10)
+    #     ax1.set_xlim(-0.5, 0.5)
+    #     ax1.set_ylim(0.0, 1.0)
+    #     ax1.grid(True, linestyle='--', alpha=0.5)
+    #
+    #     # Subplot 2: 压强
+    #     ax2 = plt.subplot(2, 2, 2)
+    #     ax2.set_title(f"Pressure Distribution (t = {t:.3f} s)")
+    #     ax2.plot(xp, p, 'go', markersize=3, label='Numerical Solution', alpha=0.7)
+    #     ax2.legend(fontsize=9)
+    #     ax2.set_xlabel('Position (m)', fontsize=10)
+    #     ax2.set_ylabel('Pressure (Pa)', fontsize=10)
+    #     ax2.set_xlim(-0.5, 0.5)
+    #     ax2.set_ylim(0.0, 1.0)
+    #     ax2.grid(True, linestyle='--', alpha=0.5)
+    #
+    #     # Subplot 3: 速度
+    #     ax3 = plt.subplot(2, 2, 3)
+    #     ax3.set_title(f"Velocity Distribution (t = {t:.3f} s)")
+    #     ax3.plot(xp, u, 'ro', markersize=3, label='Numerical Solution', alpha=0.7)
+    #     ax3.legend(fontsize=9)
+    #     ax3.set_xlabel('Position (m)', fontsize=10)
+    #     ax3.set_ylabel('Velocity (m/s)', fontsize=10)
+    #     ax3.set_xlim(-0.5, 0.5)
+    #     ax3.set_ylim(0.0, 1.0)
+    #     ax3.grid(True, linestyle='--', alpha=0.5)
+    #
+    #     # Subplot 4: 内能
+    #     ax4 = plt.subplot(2, 2, 4)
+    #     ax4.set_title(f"Specific Internal Energy Distribution (t = {t:.3f} s)")
+    #     ax4.plot(xp,E, 'mo', markersize=3, label='Numerical Solution', alpha=0.7)
+    #     ax4.legend(fontsize=9)
+    #     ax4.set_xlabel('Position (m)', fontsize=10)
+    #     ax4.set_ylabel('Specific Internal Energy (J/kg)', fontsize=10)
+    #     ax4.set_xlim(-0.5, 0.5)
+    #     ax4.set_ylim(1.5, 3.0)
+    #     ax4.grid(True, linestyle='--', alpha=0.5)
+    #
+    #     # 主标题
+    #     plt.suptitle(f"Sod Shock Tube Simulation Results (t = {t:.3f}s)", fontsize=16)
+    #     plt.tight_layout(rect=[0, 0, 1, 0.96])
+    #     plt.show()
 
 # 保存时间t_end时刻的最终解U
 U_end = U.copy()  # 使用副本
@@ -1520,119 +1367,60 @@ data_end = analytic_sod(t_end)
 #%% 可视化
 
 # 创建最终结果图（添加背景色）
-h_end = plt.figure(figsize=(10, 8), facecolor='white')  # 直接设置白色背景
+h_end = plt.figure(figsize=(10, 8), facecolor='white')
 
-# 使用变量存储子图对象便于管理
+# Subplot 1: 密度
 ax1 = plt.subplot(2, 2, 1)
-ax1.set_title(f"密度分布 (时间 t = {t_end:.3f} s)")
-ax1.plot(data_end.x, data_end.rho, '-b', linewidth=1.5, label='精确解')
-ax1.plot(xp, rho_end, 'bo', markersize=3, label='数值解')
-ax1.legend()
-ax1.set_xlabel('位置 (m)')
-ax1.set_ylabel('密度 (kg/m³)')
+ax1.set_title(f"Density Distribution (t = {t_end:.3f} s)")
+ax1.plot(data_end['x'], data_end['rho'], '-b', linewidth=1.5, label='Exact Solution')
+ax1.plot(xp, rho_end, 'bo', markersize=3, label='Numerical Solution', alpha=0.7)
+ax1.legend(fontsize=9)
+ax1.set_xlabel('Position (m)', fontsize=10)
+ax1.set_ylabel('Density (kg/m³)', fontsize=10)
 ax1.set_xlim(-0.5, 0.5)
 ax1.set_ylim(0.0, 1.0)
-ax1.grid(True)
+ax1.grid(True, linestyle='--', alpha=0.5)
 
+# Subplot 2: 压强
 ax2 = plt.subplot(2, 2, 2)
-ax2.set_title(f"压力分布 (时间 t = {t_end:.3f} s)")
-ax2.plot(data_end.x, data_end.P, '-g', linewidth=1.5, label='精确解')
-ax2.plot(xp, p_end, 'go', markersize=3, label='数值解')
-ax2.legend()
-ax2.set_xlabel('位置 (m)')
-ax2.set_ylabel('压力 (Pa)')
+ax2.set_title(f"Pressure Distribution (t = {t_end:.3f} s)")
+ax2.plot(data_end['x'], data_end['P'], '-g', linewidth=1.5, label='Exact Solution')
+ax2.plot(xp, p_end, 'go', markersize=3, label='Numerical Solution', alpha=0.7)
+ax2.legend(fontsize=9)
+ax2.set_xlabel('Position (m)', fontsize=10)
+ax2.set_ylabel('Pressure (Pa)', fontsize=10)
 ax2.set_xlim(-0.5, 0.5)
 ax2.set_ylim(0.0, 1.0)
-ax2.grid(True)
+ax2.grid(True, linestyle='--', alpha=0.5)
 
+# Subplot 3: 速度
 ax3 = plt.subplot(2, 2, 3)
-ax3.set_title(f"速度分布 (时间 t = {t_end:.3f} s)")
-ax3.plot(data_end.x, data_end.u, '-r', linewidth=1.5, label='精确解')
-ax3.plot(xp, u_end, 'ro', markersize=3, label='数值解')
-ax3.legend()
-ax3.set_xlabel('位置 (m)')
-ax3.set_ylabel('速度 (m/s)')
+ax3.set_title(f"Velocity Distribution (t = {t_end:.3f} s)")
+ax3.plot(data_end['x'], data_end['u'], '-r', linewidth=1.5, label='Exact Solution')
+ax3.plot(xp, u_end, 'ro', markersize=3, label='Numerical Solution', alpha=0.7)
+ax3.legend(fontsize=9)
+ax3.set_xlabel('Position (m)', fontsize=10)
+ax3.set_ylabel('Velocity (m/s)', fontsize=10)
 ax3.set_xlim(-0.5, 0.5)
 ax3.set_ylim(0.0, 1.0)
-ax3.grid(True)
+ax3.grid(True, linestyle='--', alpha=0.5)
 
+# Subplot 4: 内能
 ax4 = plt.subplot(2, 2, 4)
-ax4.set_title(f"比内能分布 (时间 t = {t_end:.3f} s)")
-ax4.plot(data_end.x, data_end.e, '-m', linewidth=1.5, label='精确解')
-ax4.plot(xp, e_end, 'mo', markersize=3, label='数值解')
-ax4.legend()
-ax4.set_xlabel('位置 (m)')
-ax4.set_ylabel('比内能 (J/kg)')
+ax4.set_title(f"Specific Internal Energy Distribution (t = {t_end:.3f} s)")
+ax4.plot(data_end['x'], data_end['e'], '-m', linewidth=1.5, label='Exact Solution')
+ax4.plot(xp, e_end, 'mo', markersize=3, label='Numerical Solution', alpha=0.7)
+ax4.legend(fontsize=9)
+ax4.set_xlabel('Position (m)', fontsize=10)
+ax4.set_ylabel('Specific Internal Energy (J/kg)', fontsize=10)
 ax4.set_xlim(-0.5, 0.5)
 ax4.set_ylim(1.5, 3.0)
-ax4.grid(True)
+ax4.grid(True, linestyle='--', alpha=0.5)
 
-# 调整布局（增加主标题）
-plt.suptitle(f"Sod激波管问题数值解与解析解对比 (t = {t_end:.3f}s)", fontsize=16)
-plt.tight_layout(rect=[0, 0, 1, 0.96])  # 为suptitle留出空间
+# 主标题
+plt.suptitle(f"Sod Shock Tube Simulation Results (t = {t_end:.3f}s)", fontsize=16)
+plt.tight_layout(rect=[0, 0, 1, 0.96])
 plt.show()
 
-# # 保存图形
-# fig_save_path = os.path.join(save_output_folder, f'Results_{zone_title_comb}_MaxTime_{max_tot_time:.3f}.png')
-# plt.savefig(fig_save_path, dpi=300)
-
-# #%% 导出结果到Tecplot格式
-#
-# # 准备数值解数据
-# title_cal = zone_title_comb
-# zone_title_cal = zone_title_comb
-# filename_cal = os.path.join(save_output_folder, f'Results_Sod_Shock_Tube_{zone_title_cal}_MaxTime_{max_tot_time:.3f}.plt')
-# variables_cal = ['X', 'Density', 'Pressure', 'Velocity', 'Specific Internal Energy']
-# Mat_Data_cal = np.column_stack([xp, rho_end, p_end, u_end, e_end])
-# IJK_cal = len(xp)
-#
-# # 创建Tecplot文件并写入数值解
-# # 如果文件已存在则删除
-# if os.path.exists(filename_cal):
-#     os.remove(filename_cal)
-#
-# # 写入Tecplot头信息和区域数据
-# plt_Head(filename_cal, title_cal, variables_cal)  # 保留原函数名
-# plt_Zone(filename_cal, zone_title_cal, IJK_cal, Mat_Data_cal)  # 保留原函数名
-#
-# # 准备精确解数据
-# title_ana = 'Exact'
-# zone_title_ana = 'Exact'
-# filename_ana = os.path.join(save_output_folder, f'Results_Sod_Shock_Tube_{zone_title_ana}_MaxTime_{max_tot_time:.3f}.plt')
-# variables_ana = ['X', 'Density', 'Pressure', 'Velocity', 'Specific Internal Energy']
-# Mat_Data_ana = np.column_stack([data_end.x, data_end.rho, data_end.P, data_end.u, data_end.e])
-# IJK_ana = len(data_end.x)
-#
-# # 创建Tecplot文件并写入精确解
-# # 如果文件已存在则删除
-# if os.path.exists(filename_ana):
-#     os.remove(filename_ana)
-#
-# # 写入Tecplot头信息和区域数据
-# plt_Head(filename_ana, title_ana, variables_ana)  # 保留原函数名
-# plt_Zone(filename_ana, zone_title_ana, IJK_ana, Mat_Data_ana)  # 保留原函数名
-
-#%% 保存程序变量
-# # 对应MATLAB的save命令
-# save_path = os.path.join(save_output_folder, f'Results_Variables_{zone_title_comb}_MaxTime_{max_tot_time:.3f}.mat')
-# save_data = {
-#     't_end': t_end,
-#     'U_end': U_end,
-#     'xp': xp,
-#     'rho_end': rho_end,
-#     'p_end': p_end,
-#     'u_end': u_end,
-#     'e_end': e_end,
-#     'data_end': data_end,
-#     'zone_title_comb': zone_title_comb,
-#     'max_tot_time': max_tot_time
-# }
-
-# # 使用scipy保存为MAT格式
-# from scipy.io import savemat
-# savemat(save_path, save_data)
-
-# 显示完成信息
-# print(f"计算结果已保存到: {save_path}")
 
 
