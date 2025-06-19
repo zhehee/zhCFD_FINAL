@@ -656,6 +656,42 @@ $$
 
 然而，该方法也存在一些局限：当流速$c > 1$时会产生约15-30\%的精度损失（具体损失程度与$\beta$, $\gamma$参数相关）；在强激波附近可能出现轻微过冲（一般小于5\%）；为保证数值稳定性，时间步长通常需要缩小15-20\%。这些局限性需要通过参数优化或混合格式来改善。
 
+\subsection{特征重构方法在FVS框架中的应用与影响}
+\subsubsection{应用方法}
+在流通矢量分裂(FVS)框架中应用特征重构方法的核心是通过以下步骤实现：
+
+1. \textbf{特征场投影}：
+   $$
+   \mathbf{L}\mathbf{U} = \mathbf{W}
+   $$
+   其中 $\mathbf{L}$ 为左特征向量矩阵，$\mathbf{W}$ 为特征变量。
+
+2. \textbf{特征空间重构}：
+   $$
+   \mathbf{W}_{j+\frac{1}{2}}^L = \mathbf{W}_j + \frac{1}{2}\phi_j^L(\mathbf{W}_j - \mathbf{W}_{j-1})
+   $$
+   $$
+   \mathbf{W}_{j+\frac{1}{2}}^R = \mathbf{W}_{j+1} - \frac{1}{2}\phi_{j+1}^R(\mathbf{W}_{j+1} - \mathbf{W}_j)
+   $$
+   其中 $\phi$ 为特征空间限制器函数。
+
+3. \textbf{物理空间反投影}：
+   $$
+   \mathbf{U}_{j+\frac{1}{2}}^L = \mathbf{R}\mathbf{W}_{j+\frac{1}{2}}^L, \quad
+   \mathbf{U}_{j+\frac{1}{2}}^R = \mathbf{R}\mathbf{W}_{j+\frac{1}{2}}^R
+   $$
+   $\mathbf{R}$ 为右特征向量矩阵。
+
+4. \textbf{FVS通量分裂}：
+   $$
+   \mathbf{F}_{j+\frac{1}{2}} = \mathbf{F}^+(\mathbf{U}_{j+\frac{1}{2}}^L) + \mathbf{F}^-(\mathbf{U}_{j+\frac{1}{2}}^R)
+   $$
+
+5. \textbf{通量梯度计算}：
+   $$
+   \frac{\partial\mathbf{F}}{\partial x} = \frac{\mathbf{F}_{j+\frac{1}{2}} - \mathbf{F}_{j-\frac{1}{2}}}{\Delta x}
+   $$
+
 
 
 \section{代码实现}
