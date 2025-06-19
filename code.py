@@ -39,7 +39,7 @@ def Cal_Minmod(a, b):
 
     return Q
 #通用通量差分计算函数(TVD,WENO,GVC)，返回索引和通量导数
-def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ):
+def Diff_Cons(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ):
     # 初始化输出数组
     xs_new = 0
     xt_new = 0
@@ -196,7 +196,7 @@ def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ):
     return xs_new, xt_new, Fh_p, Fh_n, Fx, Fx_p, Fx_n
 
 #使用 ROE 格式实现通量差分裂法 (FDS)
-def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_scs_typ):
+def Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_scs_typ):
     # Roe格式通量差分分裂
     if flag_fds_met == 1:
         # 初始化数组
@@ -210,7 +210,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
         em = 1e-5  # 熵修正参数
 
         # 调用守恒变量差分函数
-        xs, xt, Uh_l, Uh_r, _, _, _ = Diff_Cons_Common(
+        xs, xt, Uh_l, Uh_r, _, _, _ = Diff_Cons(
             N, dx, U, U, flag_spa_typ, 2
         )
 
@@ -223,7 +223,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
 
         # 遍历所有网格界面
         for j in range(xs, xt + 1):
-            # --- 计算左状态物理量 ---
+            # 计算左状态物理量 
             rho_l = Uh_l[j, 0]  # 左侧密度
             u_l = Uh_l[j, 1] / rho_l  # 左侧速度
             E_l = Uh_l[j, 2]  # 左侧总能
@@ -237,7 +237,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
             Fh_l[j, 1] = rho_l * u_l ** 2 + p_l  # 动量通量
             Fh_l[j, 2] = u_l * (E_l + p_l)  # 能量通量
 
-            # --- 计算右状态物理量 ---
+            #  计算右状态物理量 
             rho_r = Uh_r[j, 0]  # 右侧密度
             u_r = Uh_r[j, 1] / rho_r  # 右侧速度
             E_r = Uh_r[j, 2]  # 右侧总能
@@ -251,7 +251,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
             Fh_r[j, 1] = rho_r * u_r ** 2 + p_r  # 动量通量
             Fh_r[j, 2] = u_r * (E_r + p_r)  # 能量通量
 
-            # --- 计算Roe平均量 ---
+            # 计算Roe平均量 
             sqrt_rho_l = np.sqrt(rho_l)
             sqrt_rho_r = np.sqrt(rho_r)
             # Roe平均密度
@@ -272,7 +272,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
             # 存储Roe平均通量
             F_ave[j] = [rho_ave * u_ave, rho_ave * u_ave ** 2 + p_ave, u_ave * (E_ave + p_ave)]
 
-            # --- 构造Jacobian矩阵 ---
+            # 构造Jacobian矩阵 
             A_ave = np.array([
                 [0, 1, 0],
                 [(-(3 - Gamma) / 2) * u_ave ** 2, (3 - Gamma) * u_ave, Gamma - 1],
@@ -312,7 +312,7 @@ def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_ty
 
     return xs_new, xt_new, Fx
 #通量向量分裂方法(FVS)通用函数(Steger-Warming,Lax-Friedrich,Van Leer)
-def Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met):
+def Flux_Vect_Split(U, N, Gamma, Cp, Cv, R, flag_fvs_met):
     if flag_fvs_met == 1:
         #  FVS - Steger-Warming (S-W)方法
 
@@ -468,80 +468,6 @@ def Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met):
                 F_n[i, 2] = (F1_n / (2 * (Gamma ** 2 - 1))) * ((Gamma - 1) * u - 2 * c) ** 2
 
     return F_p, F_n
-def Plot_Props(t, xp, rho, p, u, E, fig=None, axs=None):
-    """
-    绘制物理量随时间变化的图表
-
-    参数:
-    t -- 当前时间
-    xp -- 位置坐标数组
-    rho -- 密度数组
-    p -- 压力数组
-    u -- 速度数组
-    E -- 比内能数组
-    fig -- 图形对象(可选)
-    axs -- 子图对象数组(可选)
-
-    返回:
-    fig -- 图形对象
-    axs -- 子图对象数组
-    """
-    # 如果没有提供图形和子图，创建新的
-    if fig is None or axs is None:
-        fig, axs = plt.subplots(2, 2, figsize=(12, 8))
-        plt.tight_layout(rect=[0, 0, 1, 0.95], pad=3.0)
-        fig.suptitle(f'Sod Shock Tube Simulation (t = {t:.3f} s)', fontsize=16)
-
-    # 设置四个子图的轴
-    ax1, ax2, ax3, ax4 = axs.flatten()
-
-    # 密度子图
-    ax1.clear()
-    ax1.plot(xp, rho, 'b-', linewidth=2)
-    ax1.set_xlabel('Position (m)')
-    ax1.set_ylabel('Density (kg/m³)')
-    ax1.set_title('Density Profile')
-    ax1.set_xlim(-0.5, 0.5)
-    ax1.set_ylim(0.0, 1.0)
-    ax1.grid(True)
-
-    # 压力子图
-    ax2.clear()
-    ax2.plot(xp, p, 'g-', linewidth=2)
-    ax2.set_xlabel('Position (m)')
-    ax2.set_ylabel('Pressure (Pa)')
-    ax2.set_title('Pressure Profile')
-    ax2.set_xlim(-0.5, 0.5)
-    ax2.set_ylim(0.0, 1.0)
-    ax2.grid(True)
-
-    # 速度子图
-    ax3.clear()
-    ax3.plot(xp, u, 'r-', linewidth=2)
-    ax3.set_xlabel('Position (m)')
-    ax3.set_ylabel('Velocity (m/s)')
-    ax3.set_title('Velocity Profile')
-    ax3.set_xlim(-0.5, 0.5)
-    ax3.set_ylim(0.0, 1.0)
-    ax3.grid(True)
-
-    # 比内能子图
-    ax4.clear()
-    ax4.plot(xp, E, 'm-', linewidth=2)
-    ax4.set_xlabel('Position (m)')
-    ax4.set_ylabel('Specific Internal Energy (J/kg)')
-    ax4.set_title('Specific Internal Energy Profile')
-    ax4.set_xlim(-0.5, 0.5)
-    ax4.set_ylim(1.5, 3.0)
-    ax4.grid(True)
-
-    # 更新主标题时间
-    fig.suptitle(f'Sod Shock Tube Simulation (t = {t:.3f} s)', fontsize=16)
-
-    # 自动调整布局
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    return fig, axs
 
 #计算sod激波管解析解，源自https://github.com/sbakkerm/Sod-Shock-Tube/tree/main
 def solve(left_state=(1, 1, 0), right_state=(0.1, 0.125, 0.), geometry=(-0.5, 0.5, 0), t=0.2, **kwargs):
@@ -1041,40 +967,40 @@ while cnt_step < max_step:
     # 时间离散格式选择三阶TVD龙格-库塔法
     if flag_flu_spl == 1:
         # 1 - 通量向量分裂法 (FVS)
-        F_p, F_n = Flux_Vect_Split_Common(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
-        _, _, _, _, Fx, _, _ = Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ)
+        F_p, F_n = Flux_Vect_Split(U, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        _, _, _, _, Fx, _, _ = Diff_Cons(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ)
 
         # 第一步: U1 = U^n + Δt * Q(U^n)
         U_1 = U + (dt * ((-1) * Fx))
 
         # 使用U1计算Q(U1)
-        F_p_1, F_n_1 = Flux_Vect_Split_Common(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
-        _, _, _, _, Fx_1, _, _ = Diff_Cons_Common(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_scs_typ)
+        F_p_1, F_n_1 = Flux_Vect_Split(U_1, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        _, _, _, _, Fx_1, _, _ = Diff_Cons(N, dx, F_p_1, F_n_1, flag_spa_typ, flag_scs_typ)
 
         # 第二步: U2 = (3/4)U^n + (1/4)U1 + (1/4)Δt * Q(U1)
         U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
 
         # 使用U2计算Q(U2)
-        F_p_2, F_n_2 = Flux_Vect_Split_Common(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
-        xs_new, xt_new, Fh_p, Fh_n, Fx_2, Fx_p, Fx_n = Diff_Cons_Common(N, dx, F_p_2, F_n_2, flag_spa_typ, flag_scs_typ)
+        F_p_2, F_n_2 = Flux_Vect_Split(U_2, N, Gamma, Cp, Cv, R, flag_fvs_met)
+        xs_new, xt_new, Fh_p, Fh_n, Fx_2, Fx_p, Fx_n = Diff_Cons(N, dx, F_p_2, F_n_2, flag_spa_typ, flag_scs_typ)
 
         # 最终更新: U^{n+1} = (1/3)U^n + (2/3)U2 + (2/3)Δt * Q(U2)
         U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
 
     elif flag_flu_spl == 2:
-        xs_new, xt_new, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
-
+        xs_new, xt_new, Fx = Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
+        #2 - 流通差分分裂法（FDS）
         # 第一步：计算中间解U_1
         U_1 = U + (dt * (-1 * Fx))
 
         # 使用U_1再次计算通量
-        _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
+        _, _, Fx_1 = Flux_Diff_Split(U_1, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
 
         # 第二步：计算中间解U_2
         U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + ((1 / 4) * dt * (-1 * Fx_1))
 
         # 使用U_2再次计算通量
-        _, _, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
+        _, _, Fx_2 = Flux_Diff_Split(U_2, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
 
         # 最终更新：计算新时间步的解
         U = ((1 / 3) * U) + ((2 / 3) * U_2) + ((2 / 3) * dt * (-1 * Fx_2))
@@ -1125,7 +1051,7 @@ elif flag_flu_spl == FluxSplittingMethod.FDS.value:
     }
 
     method_desc = f"FDS-{fds_methods[flag_fds_met]} "
-# 创建最终结果图（添加背景色）
+# 创建最终结果图
 h_end = plt.figure(figsize=(10, 8), facecolor='white')
 
 # Subplot 1: 密度

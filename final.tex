@@ -693,8 +693,191 @@ $$
    $$
 
 
-
 \section{代码实现}
+模拟激波管的代码实现如下：
+
+首先是基本参数设定和边界条件设定：
+\lstinputlisting[language=Python, caption={基础参数设定和边界条件}, firstline=814, lastline=862]{code.py}
+其中边界条件设定由题意，左边界为$P_1=1, \rho_1=1$，右边界为$P_2=0.1, \rho_2=0.125$。网格数为$N=200$，时间步长为$\Delta t=0.001s$，总时间为$T=0.2s$。
+
+接下来是数据初始化和算法预处理选择：
+\lstinputlisting[language=Python, caption={算法格式预处理}, firstline=864, lastline=953]{code.py}
+其中主要是通过选择不同的flag参数来选择不同的算法格式进行计算。
+
+接下来是主循环部分，进行时间推进和数据更新：
+\lstinputlisting[language=Python, caption={主循环部分}, firstline=955, lastline=1026]{code.py}
+其中采用了三阶Runge-Kutta方法进行时间推进，计算每个时间步的守恒量和通量。然后根据之前选择的flag参数，进入不同的分支计算$F_x$。比如如果\texttt{flag\_flu\_spl}为1，则使用通量矢量分裂法\texttt{Flux\_Vect\_Split}进行计算。
+如果\texttt{flag\_flu\_spl}为2，则使用流通差分分裂法\texttt{Flux\_Diff\_Split}计算。
+
+给出通量矢量分裂法的具体实现：
+\lstinputlisting[language=Python, caption={通量矢量分裂法实现}, firstline=314, lastline=470]{code.py}
+根据不同flag\_fvs\_met参数，通量矢量分裂法的三种实现如下：
+
+1. \textbf{Steger-Warming (flag\_fvs\_met=1)}  
+    Steger-Warming分裂法将特征值分为正负部分，并在实际实现中引入小量$\varepsilon$避免零点奇异：
+    $$
+    \lambda_k^{\pm} = \frac{\lambda_k \pm \sqrt{\lambda_k^2 + \varepsilon^2}}{2}
+    $$
+    其中$\lambda_k$为雅可比矩阵的特征值，$\varepsilon$为极小正数。
+
+    对每个网格点，首先计算密度$\rho$、速度$u$、总能$E$、温度$T$、压力$p$和声速$c$，再得到特征值$\lambda_1 = u$，$\lambda_2 = u-c$，$\lambda_3 = u+c$，并进行正负分裂。
+
+    通量分裂公式为：
+    \begin{align*}
+    F^+_0 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^+ + \lambda_2^+ + \lambda_3^+\right] \\
+    F^+_1 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^+ u + \lambda_2^+(u-c) + \lambda_3^+(u+c)\right] \\
+    F^+_2 &= \frac{\rho}{2\gamma} \left[(\gamma-1)\lambda_1^+ u^2 + \frac{1}{2}\lambda_2^+(u-c)^2 + \frac{1}{2}\lambda_3^+(u+c)^2 + w^+\right] \\
+    \end{align*}
+    其中
+    $$
+    w^+ = \frac{3-\gamma}{2(\gamma-1)}(\lambda_2^+ + \lambda_3^+)c^2
+    $$
+    负通量$F^-$同理，$\lambda_k^+$换为$\lambda_k^-$，$w^+$换为$w^-$。
+
+    这种实现方式无需显式构造特征向量矩阵，直接利用特征值分裂和物理量表达式完成通量分裂，数值稳定性好，适合实际编程实现。
+
+2. \textbf{Lax-Friedrichs (flag\_fvs\_met=2)}  
+    Lax-Friedrichs分裂法采用全局最大特征值$\lambda^*$进行分裂。具体实现如下：
+
+    首先，遍历所有网格点，计算每个点的速度$u$和声速$c$，得到局部特征值$|u|+c$，并取其最大值作为全局$\lambda^*$。
+
+    然后，对每个网格点，计算守恒量$\rho, u, E$，温度$T$，压力$p$，声速$c$，以及特征值$\lambda_1=u, \lambda_2=u-c, \lambda_3=u+c$。  
+    L-F方法将特征值分裂为：
+    $$
+    \lambda_k^+ = \frac{\lambda_k + \lambda^*}{2}, \quad
+    \lambda_k^- = \frac{\lambda_k - \lambda^*}{2}
+    $$
+    其中$\lambda^* = \max(|u|+c)$。
+
+    正通量和负通量分量分别为：
+    \begin{align*}
+    F^+_0 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^+ + \lambda_2^+ + \lambda_3^+\right] \\
+    F^+_1 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^+ u + \lambda_2^+(u-c) + \lambda_3^+(u+c)\right] \\
+    F^+_2 &= \frac{\rho}{2\gamma} \left[(\gamma-1)\lambda_1^+ u^2 + \frac{1}{2}\lambda_2^+(u-c)^2 + \frac{1}{2}\lambda_3^+(u+c)^2 + w^+\right] \\
+    F^-_0 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^- + \lambda_2^- + \lambda_3^-\right] \\
+    F^-_1 &= \frac{\rho}{2\gamma} \left[2(\gamma-1)\lambda_1^- u + \lambda_2^-(u-c) + \lambda_3^-(u+c)\right] \\
+    F^-_2 &= \frac{\rho}{2\gamma} \left[(\gamma-1)\lambda_1^- u^2 + \frac{1}{2}\lambda_2^-(u-c)^2 + \frac{1}{2}\lambda_3^-(u+c)^2 + w^-\right]
+    \end{align*}
+    其中
+    $$
+    w^+ = \frac{3-\gamma}{2(\gamma-1)}(\lambda_2^+ + \lambda_3^+)c^2, \quad
+    w^- = \frac{3-\gamma}{2(\gamma-1)}(\lambda_2^- + \lambda_3^-)c^2
+    $$
+    这样即可实现Lax-Friedrichs分裂的FVS通量计算。
+
+3. \textbf{van Leer (flag\_fvs\_met=3)}  
+    van Leer分裂法基于马赫数$\mathrm{Ma}=u/c$，其数值实现如下：
+
+    \begin{itemize}
+        \item 对每个网格点，计算密度$\rho$、速度$u$、总能$E$、温度$T$、压力$p$和声速$c$，再得到马赫数$\mathrm{Ma}=u/c$。
+        \item 若$\mathrm{Ma} \geq 1$，则正通量$\mathbf{F}^+$取完整物理通量，负通量$\mathbf{F}^-$为零；
+        \item 若$\mathrm{Ma} \leq -1$，则负通量$\mathbf{F}^-$取完整物理通量，正通量$\mathbf{F}^+$为零；
+        \item 若$|\mathrm{Ma}| < 1$，则
+        \begin{align*}
+            F_1^+ &= \rho c \left(\frac{\mathrm{Ma}+1}{2}\right)^2 \\
+            F_1^- &= -\rho c \left(\frac{\mathrm{Ma}-1}{2}\right)^2 \\
+            F_2^+ &= \frac{F_1^+}{\gamma} \left[(\gamma-1)u + 2c\right] \\
+            F_2^- &= \frac{F_1^-}{\gamma} \left[(\gamma-1)u - 2c\right] \\
+            F_3^+ &= \frac{F_1^+}{2(\gamma^2-1)} \left[(\gamma-1)u + 2c\right]^2 \\
+            F_3^- &= \frac{F_1^-}{2(\gamma^2-1)} \left[(\gamma-1)u - 2c\right]^2
+        \end{align*}
+        \item 最终正负通量分量分别为$\mathbf{F}^+ = (F_1^+, F_2^+, F_3^+)$，$\mathbf{F}^- = (F_1^-, F_2^-, F_3^-)$。
+    \end{itemize}
+
+    这种实现方式可有效区分超音速与亚音速区域，保证通量分裂的物理一致性和数值稳定性。
+
+实际代码实现中，通过判断flag\_fvs\_met的值，选择对应的分裂方法进行通量计算。这样可灵活切换不同的FVS分裂策略，便于对比分析其对激波捕捉和数值耗散的影响。
+
+根据通量矢量分裂法，使用激波捕捉格式进行激波管模拟：
+\lstinputlisting[language=Python, caption={激波捕捉格式实现}, firstline=41, lastline=196]{code.py}
+根据不同flag\_scs\_typ参数，通量矢量分裂法的三种实现如下：
+
+1. \textbf{TVD (flag\_scs\_typ=1)}
+
+TVD格式采用Van Leer限制器，具体实现过程如下：
+
+\begin{itemize}
+    \item 设定起始索引$xs=1$，结束索引$xt=N-2$，小量$\varepsilon=10^{-5}$防止除零
+    \item 对每个$j$在$[xs, xt)$区间
+    \begin{enumerate}
+        \item 计算正通量梯度比：$r_p = \dfrac{F_p[j] - F_p[j-1]}{F_p[j+1] - F_p[j] + \varepsilon}$
+        \item 计算负通量梯度比：$r_n = \dfrac{F_n[j+2] - F_n[j+1]}{F_n[j+1] - F_n[j] + \varepsilon}$
+        \item 计算Van Leer限制器：$\Phi_p = \dfrac{r_p + |r_p|}{1 + r_p}$，$\Phi_n = \dfrac{r_n + |r_n|}{1 + r_n}$
+        \item 半网格点通量重构：
+        \begin{align*}
+            Fh_p[j] &= F_p[j] + 0.5\,\Phi_p\,(F_p[j+1] - F_p[j]) \\
+            Fh_n[j] &= F_n[j+1] - 0.5\,\Phi_n\,(F_n[j+1] - F_n[j])
+        \end{align*}
+    \end{enumerate}
+    \item 更新索引范围$xs_{new}=xs+1$，$xt_{new}=xt$，计算通量导数：
+    \begin{align*}
+        Fx_p[j] &= \frac{Fh_p[j] - Fh_p[j-1]}{dx} \\
+        Fx_n[j] &= \frac{Fh_n[j] - Fh_n[j-1]}{dx} \\
+        Fx[j] &= Fx_p[j] + Fx_n[j]
+    \end{align*}
+\end{itemize}
+
+该实现保证了激波捕捉时的无振荡性和高分辨率
+
+2. \textbf{五阶WENO (flag\_scs\_typ=2)}
+
+五阶WENO格式实现过程如下：
+
+设常数 $C = [1/10, 6/10, 3/10]$，幂指数 $p=2$，小量 $\varepsilon=10^{-6}$，起始索引 $xs=2$，结束索引 $xt=N-3$
+
+对于每个 $j$ 在 $[xs, xt]$ 区间：
+
+正通量部分（$a>0$）：
+
+计算三个光滑指示器
+\begin{align*}
+    \beta_1 &= \frac{1}{4}(F_p[j-2] - 4F_p[j-1] + 3F_p[j])^2 + \frac{13}{12}(F_p[j-2] - 2F_p[j-1] + F_p[j])^2 \\
+    \beta_2 &= \frac{1}{4}(F_p[j-1] - F_p[j+1])^2 + \frac{13}{12}(F_p[j-1] - 2F_p[j] + F_p[j+1])^2 \\
+    \beta_3 &= \frac{1}{4}(3F_p[j] - 4F_p[j+1] + F_p[j+2])^2 + \frac{13}{12}(F_p[j] - 2F_p[j+1] + F_p[j+2])^2
+\end{align*}
+
+计算 $\alpha_k = C_k / (\varepsilon + \beta_k)^p$，归一化得权重 $\omega_k = \alpha_k / \sum \alpha_k$
+
+计算三个模板的通量值
+\begin{align*}
+    F^{(1)}_{j+1/2} &= \frac{1}{3}F_p[j-2] - \frac{7}{6}F_p[j-1] + \frac{11}{6}F_p[j] \\
+    F^{(2)}_{j+1/2} &= -\frac{1}{6}F_p[j-1] + \frac{5}{6}F_p[j] + \frac{1}{3}F_p[j+1] \\
+    F^{(3)}_{j+1/2} &= \frac{1}{3}F_p[j] + \frac{5}{6}F_p[j+1] - \frac{1}{6}F_p[j+2]
+\end{align*}
+
+加权组合 $Fh_p[j] = \omega_1 F^{(1)}_{j+1/2} + \omega_2 F^{(2)}_{j+1/2} + \omega_3 F^{(3)}_{j+1/2}$
+
+负通量部分（$a<0$）：
+
+计算三个光滑指示器
+\begin{align*}
+    \beta_1 &= \frac{1}{4}(F_n[j+2] - 4F_n[j+1] + 3F_n[j])^2 + \frac{13}{12}(F_n[j+2] - 2F_n[j+1] + F_n[j])^2 \\
+    \beta_2 &= \frac{1}{4}(F_n[j+1] - F_n[j-1])^2 + \frac{13}{12}(F_n[j+1] - 2F_n[j] + F_n[j-1])^2 \\
+    \beta_3 &= \frac{1}{4}(3F_n[j] - 4F_n[j-1] + F_n[j-2])^2 + \frac{13}{12}(F_n[j] - 2F_n[j-1] + F_n[j-2])^2
+\end{align*}
+
+计算 $\alpha_k$ 和归一化权重 $\omega_k$，同上
+
+计算三个模板的通量值
+\begin{align*}
+    F^{(1)}_{j-1/2} &= \frac{1}{3}F_n[j+2] - \frac{7}{6}F_n[j+1] + \frac{11}{6}F_n[j] \\
+    F^{(2)}_{j-1/2} &= -\frac{1}{6}F_n[j+1] + \frac{5}{6}F_n[j] + \frac{1}{3}F_n[j-1] \\
+    F^{(3)}_{j-1/2} &= \frac{1}{3}F_n[j] + \frac{5}{6}F_n[j-1] - \frac{1}{6}F_n[j-2]
+\end{align*}
+
+加权组合 $Fh_n[j] = \omega_1 F^{(1)}_{j-1/2} + \omega_2 F^{(2)}_{j-1/2} + \omega_3 F^{(3)}_{j-1/2}$
+
+计算通量导数，$xs_{new}=xs+1$，$xt_{new}=xt-1$，对 $j$ 在 $[xs_{new}, xt_{new}]$：
+\begin{align*}
+    Fx_p[j] &= \frac{Fh_p[j] - Fh_p[j-1]}{dx} \\
+    Fx_n[j] &= \frac{Fh_n[j+1] - Fh_n[j]}{dx} \\
+    Fx[j] &= Fx_p[j] + Fx_n[j]
+\end{align*}
+
+该实现保证了高阶精度和无振荡性，适用于激波和间断捕捉的高分辨率数值模拟。
+
+3. \textbf{群速度控制GVC (flag\_scs\_typ=3)}
+
 
 \newpage   
 \section{结果分析}
