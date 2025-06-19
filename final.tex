@@ -970,62 +970,19 @@ $$
 
 上述步骤即为Roe格式通量差分分裂法的完整实现流程。
 
+最后是精确解的计算和结果输出，由于是参考的网络，故不再展示具体代码：
+\lstinputlisting[language=Python, caption={精确解计算和结果输出}, firstline=1028, lastline=1030]{code.py}
 
-\newpage   
+  
 \section{结果分析}
 根据代码可以生成由各种格式计算的激波管模拟结果。我们先从网格数对结果的影响开始分析:
-采用FVS-Steger-Warming-WENO格式，网格数为$N=20\sim250$时的结果如下图所示：
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 20_t_0p200s.png}
-    \caption{网格数N=20激波管模拟结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 50_t_0p200s.png}
-    \caption{网格数N=50激波管模拟结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 100_t_0p200s.png}
-    \caption{网格数N=100激波管模拟结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 150_t_0p200s.png}
-    \caption{网格数N=150激波管模拟结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 200_t_0p200s.png}
-    \caption{网格数N=200激波管模拟结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 250_t_0p200s.png}
-    \caption{网格数N=250激波管模拟结果}
-\end{figure}
-从上述不同网格数 $N$ 的计算结果可以看出，随着 $N$ 的增大，激波等间断结构的分辨率明显提升。当 $N$ 增加到 200 及以上时，激波位置和幅值基本不再随网格加密发生明显变化，说明数值解已基本收敛，网格依赖性很小。因此，后续计算中选用 $N=201$ 作为典型网格即可兼顾精度与计算效率。需要指出的是，在本题一维问题中，网格数量对计算量影响有限，但在更高维度或复杂几何问题中，网格收敛性分析对于保证数值结果可靠性和优化计算资源分配具有重要意义。
-\newpage  
+采用FVS-Steger-Warming-WENO格式，网格数为$N=20\sim250$时的结果如下图2-7所示：
 
+从上述不同网格数 $N$ 的计算结果可以看出，随着 $N$ 的增大，激波等间断结构的分辨率明显提升。当 $N$ 增加到 200 及以上时，激波位置和幅值基本不再随网格加密发生明显变化，说明数值解已基本收敛，网格依赖性很小。因此，后续计算中选用 $N=201$ 作为典型网格即可兼顾精度与计算效率。需要指出的是，在本题一维问题中，网格数量对计算量影响有限，但在更高维度或复杂几何问题中，网格收敛性分析对于保证数值结果可靠性和优化计算资源分配具有重要意义。
+ 
 接下来我们分析不同格式对结果的影响。我们选择网格数为$N=200$，时间步长为$\Delta t=0.001s$，总时间为$T=0.2s$，采用不同格式进行计算，结果如下：
 
-对FVS方法，考察不同分裂方法的影响：
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Lax-Friedrich + 5th-order WENO_t_0p200s.png}
-    \caption{FVS-Lax-Friedrich + 5阶WENO格式结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + 5th-order WENO_t_0p200s.png}
-    \caption{FVS-Steger-Warming + 5阶WENO格式结果}
-\end{figure}
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Van Leer + 5th-order WENO_t_0p200s.png}
-    \caption{FVS-Van-Leer + 5阶WENO格式结果}
-\end{figure}
+对FVS方法，考察不同分裂方法的影响,由图8-10可以看出：
 
 \subsection{性能分析}
 
@@ -1079,6 +1036,104 @@ $x \approx \SI{0.2}{\meter}$接触间断区误差最大，分辨率最低
 
 对FVS方法，考察不同激波捕捉格式的影响，分裂采用Steger-Warming 方法：
 
+\subsubsection{密度分布对比}
+三种激波捕捉格式在密度分布上的表现如图11-13所示：
+
+\textbf{TVD (Van Leer Limiter)} 
+接触间断位置($x \approx \SI{0.2}{\meter}$)出现明显耗散，数值解与精确解偏差较大
+
+\textbf{5阶WENO} 
+接触间断分辨率最高，数值解在$x = \SI{0.2}{\meter}$处与精确解贴合最紧密
+
+\textbf{Group Velocity Control (GVC)} 
+接触间断区域存在轻微数值耗散，分辨率介于TVD与WENO之间
+
+\subsubsection{压力分布对比}
+压力分布表现差异显著：
+
+\textbf{TVD (Van Leer Limiter)} 
+平台区域($x \in [\SI{-0.3}{\meter}, \SI{0.2}{\meter}]$)有轻微振荡，激波位置($x \approx \SI{0.3}{\meter}$)偏移明显
+
+\textbf{5阶WENO} 
+平台区维持最平稳，激波位置捕捉最准确，与精确解基本重合
+
+\textbf{Group Velocity Control (GVC)} 
+平台区域存在轻微数值波动，激波位置偏移小于TVD但大于WENO
+
+\subsubsection{速度分布对比}
+稀疏波区域($x < 0$)的速度特性：
+
+\textbf{TVD (Van Leer Limiter)} 
+在膨胀波区($x < \SI{-0.2}{\meter}$)出现非物理振荡
+
+\textbf{5阶WENO} 
+膨胀波区过渡最平滑，速度分布与精确解完全一致
+
+\textbf{Group Velocity Control (GVC)} 
+膨胀波区存在轻微过冲现象，但振荡幅度小于TVD格式
+
+\subsubsection{比内能分布对比}
+比内能分布精度对比结果：
+
+\textbf{TVD (Van Leer Limiter)} 
+接触间断位置($x \approx \SI{0.2}{\meter}$)误差最大，数值解显著偏离精确解
+
+\textbf{5阶WENO} 
+比内能分布整体精度最高，尤其在接触间断区最为准确
+
+\textbf{Group Velocity Control (GVC)} 
+接触间断区存在中等程度过冲，误差小于TVD但大于WENO
+
+考察FDS方法，采用ROE格式，如图14：
+
+当采用激波捕捉格式时， Roe 格式计算结果能与精确解吻合较好，且数值振荡小，说明 Roe 格式耗散较低，与高效激波捕捉格式组合能达到较好的激波分辨率。
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 20_t_0p200s.png}
+    \caption{网格数N=20激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 50_t_0p200s.png}
+    \caption{网格数N=50激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 100_t_0p200s.png}
+    \caption{网格数N=100激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 150_t_0p200s.png}
+    \caption{网格数N=150激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 200_t_0p200s.png}
+    \caption{网格数N=200激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 250_t_0p200s.png}
+    \caption{网格数N=250激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Lax-Friedrich + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Lax-Friedrich + 5阶WENO格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Steger-Warming + 5阶WENO格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Van Leer + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Van-Leer + 5阶WENO格式结果}
+\end{figure}
+
 \begin{figure}[!htbp]
     \centering
     \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + TVD (Van Leer Limiter)_t_0p200s.png}
@@ -1095,6 +1150,13 @@ $x \approx \SI{0.2}{\meter}$接触间断区误差最大，分辨率最低
     \caption{FVS-Steger-Warming + GVC格式结果}
 \end{figure}
 
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FDS-Roe _t_0p200s.png}
+    \caption{FDS-ROE + 5阶WENO格式结果}
+\end{figure}
+
+
 \section{AI工具使用说明表}
 \begin{table}[!htbp]
     \centering
@@ -1104,9 +1166,11 @@ $x \approx \SI{0.2}{\meter}$接触间断区误差最大，分辨率最低
         \hline
         Copilot & latex格式框架 & figure参数调整、图片插入\\
         \hline
-        Deepseek & python绘图调整 & 68-90行图绘制的具体参数调整\\
+        Deepseek & python绘图调整 & 1033-1120行图绘制的具体参数调整\\
         \hline
         Deepseek & gitignore文件忽略 & 全由ai添加\\
+        \hline
+        github & sod.shock.tube 精确解获取 & 472-813行analytic\_sod函数的定义\\
         \hline
 \end{tabular}
 \end{table}
