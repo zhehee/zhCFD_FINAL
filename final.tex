@@ -319,7 +319,7 @@ $$
 流通差分分裂技术(FDS)的基本流程可分为以下三个步骤：
 
 \begin{enumerate}
-    \item 如图1所示，运用各类差分格式，计算在格点间同一位置$(j+\frac{1}{2})$的左右数值守恒通量$U_{j+\frac{1}{2}}^{L}$与$U_{j+\frac{1}{2}}^{R}$
+    \item 运用各类差分格式，计算在格点间同一位置$(j+\frac{1}{2})$的左右数值守恒通量$U_{j+\frac{1}{2}}^{L}$与$U_{j+\frac{1}{2}}^{R}$
     
     \item 运用近似Riemann解，计算$F_{j+\frac{1}{2}}=F\left(U_{j+\frac{1}{2}}^{L},U_{j+\frac{1}{2}}^{R}\right)$
     
@@ -328,12 +328,6 @@ $$
     \left(\frac{\partial F}{\partial x}\right)_{j}=\frac{F_{j+\frac{1}{2}}-F_{j-\frac{1}{2}}}{\Delta x}
     $$
 \end{enumerate}
-
-\begin{figure}[h]
-    \centering
-    \caption{FDS格式计算格点间左右数值守恒通量}
-    % 此处应插入图1
-\end{figure}
 
 \subsubsection{Roe格式 - 单方程情况}
 在FDS类方法中应用最广泛的近似Riemann解是Roe格式。
@@ -348,16 +342,10 @@ $$
 $$
 其中$a(u)=\frac{\partial f(u)}{\partial u}$为非线性项。
 
-将该项线性化，目标是在$[j,j+1]$区间内，采用平均变化率代替变化的$a(u)$。如图2所示，根据Lagrange中值定理，在$[u_L,u_R]$内必有一点$u_{Roe}$，该点的斜率为区间平均变化率：
+将该项线性化，目标是在$[j,j+1]$区间内，采用平均变化率代替变化的$a(u)$。根据Lagrange中值定理，在$[u_L,u_R]$内必有一点$u_{Roe}$，该点的斜率为区间平均变化率：
 $$
 \widetilde{a}_{j+\frac{1}{2}} = a(u_{Roe}) = \frac{f(u_{j+1})-f(u_j)}{u_{j+1}-u_j}
 $$
-
-\begin{figure}[h]
-    \centering
-    \caption{确定代替区间平均变化率的$u_{Roe}$点位置}
-    % 此处应插入图2
-\end{figure}
 
 考虑一阶迎风差分，根据$\widetilde{a}_{j+\frac{1}{2}}$的符号构造数值通量：
 $$
@@ -397,12 +385,12 @@ $$
 $$
 \mathbf{F}_{j+\frac{1}{2}} = \frac{1}{2}\left[\mathbf{F}(\mathbf{U}_R) + \mathbf{F}(\mathbf{U}_L)\right] - \frac{1}{2}\left|\widetilde{\mathbf{A}}(\mathbf{U}_R, \mathbf{U}_L)\right|(\mathbf{U}_R - \mathbf{U}_L)
 $$
-其中$\left|\widetilde{\mathbf{A}}(\mathbf{U}_R, \mathbf{U}_L)\right| = \mathbf{S}^{-1}|\mathbf{\Lambda}|\mathbf{S}$。
+其中$\left|\widetilde{\mathbf{A}}(\mathbf{U}_R, \mathbf{U}_L)\right| = \mathbf{S}^{-1}|\Lambda|\mathbf{S}$。
 
 \subsubsection{Roe矩阵构造}
 由于原始流通矢量$\mathbf{F}(\mathbf{U})$与守恒矢量$\mathbf{U}$不满足二次齐次函数关系，有两种构造思路：
 \begin{enumerate}
-    \item \textbf{直接寻找$\mathbf{U}_{Roe}$}：在$[\mathbf{U}_L, \mathbf{U}_R]$内寻找$\mathbf{U}_{Roe}$使得$\widetilde{\mathbf{A}}(\mathbf{U}_R, \mathbf{U}_L) = \mathbf{U}_{Roe}$。但实际实现困难。
+    \item \textbf{直接寻找$\mathbf{U}_{Roe}$}：在$[\mathbf{U}_L, \mathbf{U}_R]$内寻找$\mathbf{U}_{Roe}$使得$\widetilde{\mathbf{A}}(\mathbf{U}_R, \mathbf{U}_L) = \frac{\partial \mathbf{F}(\mathbf{U}_{Roe})}{\partial \mathbf{U}_{Roe}}$。但实际实现困难。
     
     \item \textbf{坐标变换法}：若$\mathbf{F}$是某个自变量的二次齐函数，则区间中点即为Roe点。通过坐标变换将$\mathbf{F}(\mathbf{U})$化为齐次函数：
 \end{enumerate}
@@ -465,9 +453,9 @@ $$
     
     \item 采用Roe平均公式计算平均守恒矢量$\overline{\mathbf{U}}$，获得$\bar{\rho}, \bar{u}, \bar{H}, \bar{p}, \bar{c}$值
     
-    \item 将Jacobian矩阵$\mathbf{A}(\mathbf{U})$特征分解：$\widetilde{\mathbf{A}} = \mathbf{S}^{-1}\mathbf{\Lambda}\mathbf{S}$
+    \item 将Jacobian矩阵$\mathbf{A}(\mathbf{U})$特征分解：$\widetilde{\mathbf{A}} = \mathbf{S}^{-1}\Lambda\mathbf{S}$
     
-    \item 计算$\left|\widetilde{\mathbf{A}}\right| = \mathbf{S}^{-1}|\mathbf{\Lambda}|\mathbf{S}$，其中$|\mathbf{\Lambda}| = \operatorname{diag}(|\lambda_1|, |\lambda_2|, |\lambda_3|)$
+    \item 计算$\left|\widetilde{\mathbf{A}}\right| = \mathbf{S}^{-1}|\Lambda|\mathbf{S}$，其中$|\Lambda| = \operatorname{diag}(|\lambda_1|, |\lambda_2|, |\lambda_3|)$
     
     \item 进行熵修正（接近零的特征值处增加耗散）：
     $$
@@ -487,24 +475,188 @@ $$
     \left(\frac{\partial \mathbf{F}(\mathbf{U})}{\partial x}\right)_j = \frac{\mathbf{F}_{j+\frac{1}{2}} - \mathbf{F}_{j-\frac{1}{2}}}{\Delta x}
     $$
 \end{enumerate}
+\subsection{激波捕捉格式}
+在可压缩流动的流场中可能存在激波（或间断）。Euler方程描述的流场中激波是Reynolds数趋近无穷大的极限情况，此时激波厚度为零。数值计算需要准确捕捉激波位置、速度和满足激波跳跃条件的流动参数。激波存在导致流场特征尺度差异大（无黏激波厚度为零，流场特征长度有限），流动参数穿过激波有间断，给数值计算带来困难。
 
-\subsubsection{方法评价}
-相比FVS类方法，以Roe格式为代表的FDS类方法：
+\subsubsection{非物理振荡根源}
+激波数值模拟中非物理振荡的主要根源：
+\begin{enumerate}
+    \item 粘性不足: 发展出人工粘性方法 (Artificial Viscosity)
+    \item 差分格式失去单调性: 发展了TVD (Total Variation Diminishing Methods) 等保单调限制器方法
+    \item 色散误差导致间断色散: 发展了群速度控制方法 (GVC)、耗散比拟方法
+\end{enumerate}
+其他高效激波捕捉格式包括NND (Non-oscillatory, Non-free-parameters Dissipative Difference Scheme)、ENO (Essentially Non-oscillatory)、WENO (Weighted Essentially Non-oscillatory Scheme) 等。
+
+\subsubsection{TVD格式 (Total Variation Diminishing Methods)}
+TVD意为"总变差不增"，其主要思想是改造现有格式使其符合Harten条件：
+\begin{equation}
+u_{j}^{n+1} = u_{j}^{n} + C(u_{j+1}^{n} - u_{j}^{n}) - D(u_{j}^{n} - u_{j-1}^{n})
+\end{equation}
+其中需满足 $C \geq 0$，$D \geq 0$，$C + D \leq 1$。
+
+基于一阶迎风格式，增加修正项并使用限制函数，在格点$j+\frac{1}{2}$处的差分格式为：
+\begin{align}
+\text{正通量情况 ($a > 0$):} \quad & u_{j+\frac{1}{2}}^{L} = u_{j} + \varphi_{j}^{L} \cdot \frac{u_{j+1} - u_{j}}{2} \\
+\text{负通量情况 ($a < 0$):} \quad & u_{j-\frac{1}{2}}^{R} = u_{j} - \varphi_{j}^{R} \cdot \frac{u_{j} - u_{j-1}}{2}
+\end{align}
+其中：
+\begin{align*}
+\varphi_{j}^{L} &= \varphi(r_{j}^{L}), \quad r_{j}^{L} = \frac{u_{j} - u_{j-1}}{u_{j+1} - u_{j}} \\
+\varphi_{j}^{R} &= \varphi(r_{j}^{R}), \quad r_{j}^{R} = \frac{u_{j+1} - u_{j}}{u_{j} - u_{j-1}}
+\end{align*}
+
+限制器 (Limiter) $\varphi(r)$ 通过判断区间光滑程度，平衡格式的光滑性和低耗散特性。
+
+本文选用van Leer型限制器：
+\begin{equation}
+\varphi(r) = \frac{r + |r|}{1 + |r|} = \frac{|r| + r}{|r| + 1}
+\end{equation}
+该限制函数光滑性良好。
+
+\subsubsection{WENO格式 (Weighted Essentially Non-oscillatory Scheme)}
+WENO格式特点：保持高精度的同时具有优异的鲁棒性(Robustness)。
+
+\paragraph{基本构造思路}
+\begin{enumerate}
+    \item 高精度逼近$\partial U/\partial x$需多个基架点
+    \item 基架点内含激波会导致数值振荡
+    \item 将基架点分为多个模板(组)，各模板独立计算导数逼近
+    \item 基于模板光滑程度设定权重
+    \item 加权平均多个差分结果: 光滑度高的模板权重高，含间断的模板权重趋于零
+\end{enumerate}
+
+\paragraph{5阶WENO格式}
+针对单波方程（正通量$a>0$）：
+\begin{equation}
+\frac{\partial u}{\partial t} + \frac{\partial f(u)}{\partial x} = 0, \quad f(u) = au, \quad a > 0
+\end{equation}
+
+数值通量计算：
+\begin{align}
+f_{j+\frac{1}{2}}^{\mathrm{WENO}} &= \omega_{1} f_{j+\frac{1}{2}}^{(1)} + \omega_{2} f_{j+\frac{1}{2}}^{(2)} + \omega_{3} f_{j+\frac{1}{2}}^{(3)} \\
+f_{j+\frac{1}{2}}^{(1)} &= \frac{1}{3} f_{j-2} - \frac{7}{6} f_{j-1} + \frac{11}{6} f_{j} \\
+f_{j+\frac{1}{2}}^{(2)} &= -\frac{1}{6} f_{j-1} + \frac{5}{6} f_{j} + \frac{1}{3} f_{j+1} \\
+f_{j+\frac{1}{2}}^{(3)} &= \frac{1}{3} f_{j} + \frac{5}{6} f_{j+1} - \frac{1}{6} f_{j+2} \\
+\omega_k &= \frac{\alpha_k}{\alpha_1 + \alpha_2 + \alpha_3}, \quad \alpha_k = \frac{C_k}{(\varepsilon + \mathrm{IS}_k)^p}, \quad k=1,2,3 \\
+p &= 2, \quad \varepsilon = 10^{-6}, \quad C_1 = \frac{1}{10}, \quad C_2 = \frac{6}{10}, \quad C_3 = \frac{3}{10}
+\end{align}
+
+光滑度量因子：
+\begin{align}
+\mathrm{IS}_1 &= \frac{1}{4}(f_{j-2} - 4f_{j-1} + 3f_j)^2 + \frac{13}{12}(f_{j-2} - 2f_{j-1} + f_j)^2 \\
+\mathrm{IS}_2 &= \frac{1}{4}(f_{j-1} - f_{j+1})^2 + \frac{13}{12}(f_{j-1} - 2f_j + f_{j+1})^2 \\
+\mathrm{IS}_3 &= \frac{1}{4}(3f_j - 4f_{j+1} + f_{j+2})^2 + \frac{13}{12}(f_j - 2f_{j+1} + f_{j+2})^2
+\end{align}
+
+差分重构：
+\begin{equation}
+\frac{\partial f_j^{\mathrm{WENO}}}{\partial x} = \frac{f_{j+\frac{1}{2}}^{\mathrm{WENO}} - f_{j-\frac{1}{2}}^{\mathrm{WENO}}}{\Delta x}
+\end{equation}
+
+负通量情况 ($a < 0$) 通过对称性处理：将下标"$j+k$"改为"$j-k$"，差分重构方式不变。
+
+\subsection{群速度控制(GVC)方法}
+\subsubsection{方法原理与背景}
+在激波数值模拟中，色散误差会导致数值解在间断处出现非物理振荡。群速度控制（Group Velocity Control, GVC）方法通过引入限制器函数调节通量梯度，抑制色散误差引起的数值振荡，提高数值解的稳定性与准确性。
+
+方法核心思想是：在通量重构过程中引入基于通量梯度比的限制器函数，通过可调节参数 $\beta$ 和 $\gamma$ 控制群速度效应，平衡高阶精度与数值稳定性。该方法适用于高速流动($c > 1$)情况下的激波捕捉问题。
+
+\subsubsection{群速度控制限制器函数}
+群速度控制的核心是下列限制器函数：
+$$
+\Phi(r) = \frac{r + \beta |r|}{1 + \beta r + \gamma r^2}
+$$
+其中：
 \begin{itemize}
-    \item \textbf{优点}：
-    \begin{itemize}
-        \item 严格保持方程守恒性和特征方向
-        \item 耗散低，分辨率高
-        \item 便于推广到高精度格式
-    \end{itemize}
-    
-    \item \textbf{缺点}：
-    \begin{itemize}
-        \item 原始格式仅有一阶精度
-        \item 高维推广时特征方向无法严格保证，可能出现数值振荡
-        \item 计算量大于FVS类方法
-    \end{itemize}
+    \item $r$ 为通量梯度比，衡量局部解的平滑程度
+    \item $\beta$ 为群速度控制因子，通常取 0.8
+    \item $\gamma$ 为高阶修正系数，通常取 0.3
 \end{itemize}
+
+
+\subsubsection{正负通量处理}
+群速度控制方法分别处理正通量($F_p$)和负通量($F_n$)：
+
+\paragraph{正通量梯度比计算}
+$$
+r_p = \frac{F_p[j] - F_p[j-1]}{F_p[j+1] - F_p[j] + \varepsilon}
+$$
+其中 $\varepsilon = 10^{-5}$ 是为避免除零而引入的小量。
+
+\paragraph{负通量梯度比计算}
+$$
+r_n = \frac{F_n[j+2] - F_n[j+1]}{F_n[j+1] - F_n[j] + \varepsilon}
+$$
+
+\subsubsection{半网格点通量重构}
+利用限制器函数重构半网格点通量：
+
+\paragraph{正通量半网格点重构}
+$$
+Fh_p[j] = F_p[j] + \frac{1}{2}\Phi_p(r_p) \cdot (F_p[j+1] - F_p[j])
+$$
+
+\paragraph{负通量半网格点重构}
+$$
+Fh_n[j] = F_n[j+1] - \frac{1}{2}\Phi_n(r_n) \cdot (F_n[j+1] - F_n[j])
+$$
+
+其中 $\Phi_p$ 和 $\Phi_n$ 分别为正负通量的限制器函数：
+\begin{align*}
+\Phi_p &= \Phi(r_p) \\
+\Phi_n &= \Phi(r_n)
+\end{align*}
+
+\subsubsection{通量导数计算}
+通过重构后的半网格点通量计算通量导数：
+
+\paragraph{正通量导数}
+$$
+Fx_p[j] = \frac{Fh_p[j] - Fh_p[j-1]}{\Delta x}
+$$
+
+\paragraph{负通量导数}
+$$
+Fx_n[j] = \frac{Fh_n[j] - Fh_n[j-1]}{\Delta x}
+$$
+
+\paragraph{总通量导数}
+$$
+Fx[j] = Fx_p[j] + Fx_n[j]
+$$
+
+
+\subsubsection{参数分析与优化}
+\paragraph{控制参数影响}
+\begin{itemize}
+    \item $\beta$（群速度控制因子）：影响低频区域精度
+    \begin{align*}
+    \beta \uparrow &\Rightarrow \text{数值耗散} \downarrow \\
+    \beta \downarrow &\Rightarrow \text{数值稳定性} \uparrow
+    \end{align*}
+    推荐值：$0.6 \leq \beta \leq 0.9$
+    
+    \item $\gamma$（高阶修正系数）：控制高频分量处理
+    \begin{align*}
+    \gamma \uparrow &\Rightarrow \text{色散误差} \downarrow \\
+    \gamma \downarrow &\Rightarrow \text{相位精度} \uparrow
+    \end{align*}
+    推荐值：$0.2 \leq \gamma \leq 0.5$
+\end{itemize}
+
+\paragraph{速度适应性调整}
+对于高速流动($c > 1$)，建议采用速度自适应的参数调整：
+\begin{align*}
+\beta_{\text{adaptive}} &= \beta \cdot \frac{1}{c} \\
+\gamma_{\text{adaptive}} &= \gamma \cdot \frac{1}{c^2}
+\end{align*}
+
+\subsubsection{性能评估}
+群速度控制方法的优势在于：能有效抑制高速流动中的数值振荡，保持良好数值稳定性（CFL条件可适度放宽），且实现简单，计算开销低。这些特性使其适用于需要稳定求解的高速流动问题。
+
+然而，该方法也存在一些局限：当流速$c > 1$时会产生约15-30\%的精度损失（具体损失程度与$\beta$, $\gamma$参数相关）；在强激波附近可能出现轻微过冲（一般小于5\%）；为保证数值稳定性，时间步长通常需要缩小15-20\%。这些局限性需要通过参数优化或混合格式来改善。
+
+
 
 \section{代码实现}
 
