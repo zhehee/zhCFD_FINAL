@@ -195,97 +195,120 @@ def Diff_Cons_Common(N, dx, F_p, F_n, flag_spa_typ, flag_scs_typ):
                 Fx[j] = Fx_p[j] + Fx_n[j]
     return xs_new, xt_new, Fh_p, Fh_n, Fx, Fx_p, Fx_n
 
-#使用 Lax-Wendroff 格式实现通量差分裂法 (FDS)
-def Flux_Diff_Split_Common(U, N, dx, Gamma, dt):
-    # 初始化变量
-    Fx = np.zeros_like(U)
-    F_interface = np.zeros((N, 3))  # 界面通量
+#使用 ROE 格式实现通量差分裂法 (FDS)
+def Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag_scs_typ):
+    # Roe格式通量差分分裂
+    if flag_fds_met == 1:
+        # 初始化数组
+        Fh_l = np.zeros((N, 3))  # 左界面通量
+        Fh_r = np.zeros((N, 3))  # 右界面通量
+        U_ave = np.zeros((N, 3))  # Roe平均守恒变量
+        F_ave = np.zeros((N, 3))  # Roe平均通量
+        Fh = np.zeros((N, 3))  # 界面通量
+        Fx = np.zeros((N, 3))  # 空间导数
 
-    # 数值安全参数
-    MIN_VAL = 1e-10
-    MAX_VAL = 1e10
+        em = 1e-5  # 熵修正参数
 
-    # 主循环范围 (所有内部界面)
-    xs = 0  # 起始索引
-    xt = N - 2  # 结束索引
+        # 调用守恒变量差分函数
+        xs, xt, Uh_l, Uh_r, _, _, _ = Diff_Cons_Common(
+            N, dx, U, U, flag_spa_typ, 2
+        )
 
-    # 计算所有界面通量 (j+1/2 界面)
-    for j in range(xs, xt + 1):
-        # 获取左右状态 (网格点 j 和 j+1)
-        U_L = U[j]  # 左侧状态
-        U_R = U[j + 1]  # 右侧状态
+        # WENO格式
+        if flag_spa_typ == 1 and flag_scs_typ == 2:
+            xt = xt - 1  # 调整计算域结束索引
+            # 右状态值向右平移一位
+            for j in range(xs, xt + 1):
+                Uh_r[j] = Uh_r[j + 1]
 
-        # Lax-Wendroff 通量计算
-        rho_L = max(min(U_L[0], MAX_VAL), MIN_VAL)
-        mom_L = U_L[1]
-        u_L = mom_L / max(rho_L, MIN_VAL)
-        u_L = np.clip(u_L, -MAX_VAL, MAX_VAL)
-        E_L = max(min(U_L[2], MAX_VAL), MIN_VAL)
+        # 遍历所有网格界面
+        for j in range(xs, xt + 1):
+            # --- 计算左状态物理量 ---
+            rho_l = Uh_l[j, 0]  # 左侧密度
+            u_l = Uh_l[j, 1] / rho_l  # 左侧速度
+            E_l = Uh_l[j, 2]  # 左侧总能
+            # 左侧温度
+            T_l = ((E_l / rho_l) - 0.5 * u_l ** 2) / Cv
+            p_l = rho_l * R * T_l  # 左侧压力
+            H_l = 0.5 * u_l ** 2 + Cp * T_l  # 左侧总焓
 
-        # 计算左状态压力和总焓
-        e_kin_L = 0.5 * rho_L * min(u_L ** 2, MAX_VAL)
-        e_int_L = max(E_L - e_kin_L, MIN_VAL)
-        p_L = max((Gamma - 1) * e_int_L, MIN_VAL)
-        H_L = (E_L + p_L) / max(rho_L, MIN_VAL)
+            # 左侧通量计算
+            Fh_l[j, 0] = rho_l * u_l  # 质量通量
+            Fh_l[j, 1] = rho_l * u_l ** 2 + p_l  # 动量通量
+            Fh_l[j, 2] = u_l * (E_l + p_l)  # 能量通量
 
-        # 解包右状态并添加保护
-        rho_R = max(min(U_R[0], MAX_VAL), MIN_VAL)
-        mom_R = U_R[1]
-        u_R = mom_R / max(rho_R, MIN_VAL)
-        u_R = np.clip(u_R, -MAX_VAL, MAX_VAL)
-        E_R = max(min(U_R[2], MAX_VAL), MIN_VAL)
+            # --- 计算右状态物理量 ---
+            rho_r = Uh_r[j, 0]  # 右侧密度
+            u_r = Uh_r[j, 1] / rho_r  # 右侧速度
+            E_r = Uh_r[j, 2]  # 右侧总能
+            # 右侧温度
+            T_r = ((E_r / rho_r) - 0.5 * u_r ** 2) / Cv
+            p_r = rho_r * R * T_r  # 右侧压力
+            H_r = 0.5 * u_r ** 2 + Cp * T_r  # 右侧总焓
 
-        # 计算右状态压力和总焓
-        e_kin_R = 0.5 * rho_R * min(u_R ** 2, MAX_VAL)
-        e_int_R = max(E_R - e_kin_R, MIN_VAL)
-        p_R = max((Gamma - 1) * e_int_R, MIN_VAL)
-        H_R = (E_R + p_R) / max(rho_R, MIN_VAL)
+            # 右侧通量计算
+            Fh_r[j, 0] = rho_r * u_r  # 质量通量
+            Fh_r[j, 1] = rho_r * u_r ** 2 + p_r  # 动量通量
+            Fh_r[j, 2] = u_r * (E_r + p_r)  # 能量通量
 
-        # 计算左右通量
-        F_L = np.array([
-            rho_L * u_L,
-            rho_L * u_L ** 2 + p_L,
-            u_L * (E_L + p_L)
-        ])
+            # --- 计算Roe平均量 ---
+            sqrt_rho_l = np.sqrt(rho_l)
+            sqrt_rho_r = np.sqrt(rho_r)
+            # Roe平均密度
+            rho_ave = ((sqrt_rho_l + sqrt_rho_r) / 2) ** 2
+            # Roe平均速度
+            u_ave = (sqrt_rho_l * u_l + sqrt_rho_r * u_r) / (np.sqrt(rho_ave) * 2)
+            # Roe平均总焓
+            H_ave = (sqrt_rho_l * H_l + sqrt_rho_r * H_r) / (np.sqrt(rho_ave) * 2)
+            # Roe平均压力
+            p_ave = ((Gamma - 1) / Gamma) * (rho_ave * H_ave - 0.5 * rho_ave * u_ave ** 2)
+            # Roe平均声速
+            c_ave = np.sqrt((Gamma - 1) * (H_ave - 0.5 * u_ave ** 2))
+            # Roe平均总能
+            E_ave = rho_ave * H_ave - p_ave
 
-        F_R = np.array([
-            rho_R * u_R,
-            rho_R * u_R ** 2 + p_R,
-            u_R * (E_R + p_R)
-        ])
+            # 存储Roe平均守恒变量
+            U_ave[j] = [rho_ave, rho_ave * u_ave, E_ave]
+            # 存储Roe平均通量
+            F_ave[j] = [rho_ave * u_ave, rho_ave * u_ave ** 2 + p_ave, u_ave * (E_ave + p_ave)]
 
-        # 计算中间状态 U_{i+1/2}^{n+1/2}
-        U_mid = 0.5 * (U_L + U_R) - 0.5 * (dt / dx) * (F_R - F_L)
+            # --- 构造Jacobian矩阵 ---
+            A_ave = np.array([
+                [0, 1, 0],
+                [(-(3 - Gamma) / 2) * u_ave ** 2, (3 - Gamma) * u_ave, Gamma - 1],
+                [((Gamma - 2) / 2) * u_ave ** 3 - u_ave * c_ave ** 2 / (Gamma - 1),
+                 c_ave ** 2 / (Gamma - 1) + (3 - Gamma) / 2 * u_ave ** 2,
+                 Gamma * u_ave]
+            ])
 
-        # 解包中间状态并添加保护
-        rho_mid = max(min(U_mid[0], MAX_VAL), MIN_VAL)
-        mom_mid = U_mid[1]
-        u_mid = mom_mid / max(rho_mid, MIN_VAL)
-        u_mid = np.clip(u_mid, -MAX_VAL, MAX_VAL)
-        E_mid = max(min(U_mid[2], MAX_VAL), MIN_VAL)
+            # 特征分解
+            D, V = np.linalg.eig(A_ave)
+            S = np.linalg.inv(V)
 
-        # 计算中间状态压力和总焓
-        e_kin_mid = 0.5 * rho_mid * min(u_mid ** 2, MAX_VAL)
-        e_int_mid = max(E_mid - e_kin_mid, MIN_VAL)
-        p_mid = max((Gamma - 1) * e_int_mid, MIN_VAL)
+            # 熵修正处理特征值
+            D_abs = np.zeros(3)
+            for i in range(3):
+                if abs(D[i]) > em:
+                    D_abs[i] = abs(D[i])
+                else:
+                    # Harten修正公式
+                    D_abs[i] = (D[i] ** 2 + em ** 2) / (2 * em)
 
-        # 计算中间通量 (F_{j+1/2})
-        F_mid = np.array([
-            rho_mid * u_mid,
-            rho_mid * u_mid ** 2 + p_mid,
-            u_mid * (E_mid + p_mid)
-        ])
+            # 构造绝对Jacobian矩阵
+            A_ave_abs = V @ np.diag(D_abs) @ S
 
-        # 存储界面通量 (位置 j 对应 j+1/2 界面)
-        F_interface[j] = F_mid
+            # 计算界面通量
+            diff = (Uh_r[j] - Uh_l[j]).reshape(3, 1)  # 状态差向量
+            # Roe通量公式
+            roe_flux = 0.5 * (A_ave_abs @ diff).flatten()
+            Fh[j] = 0.5 * (Fh_l[j] + Fh_r[j]) - roe_flux
 
-    # 通量导数计算范围
-    xs_new = 1
-    xt_new = N - 2
-
-    # 计算通量导数 (Fx_j = (F_{j+1/2} - F_{j-1/2}) / dx)
-    for j in range(xs_new, xt_new + 1):
-        Fx[j] = (F_interface[j] - F_interface[j - 1]) / dx
+        #计算空间导数
+        xs_new = xs + 1  # 新计算域起始索引
+        xt_new = xt  # 新计算域结束索引
+        for j in range(xs_new, xt_new + 1):
+            # 中心差分格式
+            Fx[j] = (Fh[j] - Fh[j - 1]) / dx
 
     return xs_new, xt_new, Fx
 #通量向量分裂方法(FVS)通用函数(Steger-Warming,Lax-Friedrich,Van Leer)
@@ -817,7 +840,7 @@ class Calculator:
 
         return x_arr, p, rho, u
 
-#计算sod激波管解析解，源自https: // github.com / sbakkerm / Sod - Shock - Tube / tree / main
+#计算sod激波管解析解，源自https://github.com/sbakkerm/Sod-Shock-Tube/tree/main
 def analytic_sod(t=0.2):
     """
     计算Sod激波管问题的解析解
@@ -924,7 +947,7 @@ class FVSMethods(Enum):
     VAN_LEER = 3         # Van Leer方法
 #通量差分裂方法FDS选择
 class FDSMethods(Enum):
-    LAX_WENDROFF = 1  # Lax-Wendroff格式
+    ROE = 1  # ROE格式
 #空间离散格式选择
 class SpatialDiscretizationType(Enum):
     SHOCK_CAPTURING = 1  # 激波捕捉格式
@@ -938,7 +961,7 @@ class ShockCapturingScheme(Enum):
 # 指定通量分裂方法
 # 1 - 通量向量分裂(FVS)
 # 2 - 通量差分裂(FDS)
-flag_flu_spl = FluxSplittingMethod.FVS.value
+flag_flu_spl = FluxSplittingMethod.FDS.value
 
 # FVS方法家族选择
 # 1 - Steger-Warming (S-W)
@@ -951,8 +974,8 @@ flag_fvs_met = FVSMethods.VAN_LEER.value
 # 2 - 特征重构
 flag_flu_rec = 1
 
-# FDS方法家族选择(FDS-Lax-Wendroff格式)
-flag_fds_met = FDSMethods.LAX_WENDROFF.value
+# FDS方法家族选择(FDS-ROE格式)
+flag_fds_met = FDSMethods.ROE.value
 
 # 指定高分辨率通量空间离散格式
 flag_spa_typ = SpatialDiscretizationType.SHOCK_CAPTURING.value  # 激波捕捉格式
@@ -1039,22 +1062,22 @@ while cnt_step < max_step:
         U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
 
     elif flag_flu_spl == 2:
-        # 2 - 通量差分裂法 (FDS)
-        _, _, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma,dt)
+        xs_new, xt_new, Fx = Flux_Diff_Split_Common(U, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
 
+        # 第一步：计算中间解U_1
+        U_1 = U + (dt * (-1 * Fx))
 
-        # 第一步
-        U_1 = U + (dt * ((-1) * Fx))
-        _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma,dt)
+        # 使用U_1再次计算通量
+        _, _, Fx_1 = Flux_Diff_Split_Common(U_1, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
 
+        # 第二步：计算中间解U_2
+        U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + ((1 / 4) * dt * (-1 * Fx_1))
 
-        # 第二步
-        U_2 = ((3 / 4) * U) + ((1 / 4) * U_1) + (((1 * dt) / 4) * ((-1) * Fx_1))
-        xs_new, xt_new, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, dt)
+        # 使用U_2再次计算通量
+        _, _, Fx_2 = Flux_Diff_Split_Common(U_2, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
 
-
-        # 最终更新
-        U = ((1 / 3) * U) + ((2 / 3) * U_2) + (((2 / 3) * dt) * ((-1) * Fx_2))
+        # 最终更新：计算新时间步的解
+        U = ((1 / 3) * U) + ((2 / 3) * U_2) + ((2 / 3) * dt * (-1 * Fx_2))
 
 # 保存时间t_end时刻的最终解U
 U_end = U.copy()
@@ -1098,9 +1121,10 @@ if flag_flu_spl == FluxSplittingMethod.FVS.value:
 
 elif flag_flu_spl == FluxSplittingMethod.FDS.value:
     fds_methods = {
-        FDSMethods.LAX_WENDROFF.value: "Lax-Wendroff"
+        FDSMethods.ROE.value: "Roe"
     }
-    method_desc = f"FDS-{fds_methods[flag_fds_met]}"
+
+    method_desc = f"FDS-{fds_methods[flag_fds_met]} "
 # 创建最终结果图（添加背景色）
 h_end = plt.figure(figsize=(10, 8), facecolor='white')
 
