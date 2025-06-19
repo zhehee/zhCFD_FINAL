@@ -223,7 +223,7 @@ def Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag
 
         # 遍历所有网格界面
         for j in range(xs, xt + 1):
-            # 计算左状态物理量 
+            # --- 计算左状态物理量 ---
             rho_l = Uh_l[j, 0]  # 左侧密度
             u_l = Uh_l[j, 1] / rho_l  # 左侧速度
             E_l = Uh_l[j, 2]  # 左侧总能
@@ -237,7 +237,7 @@ def Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag
             Fh_l[j, 1] = rho_l * u_l ** 2 + p_l  # 动量通量
             Fh_l[j, 2] = u_l * (E_l + p_l)  # 能量通量
 
-            #  计算右状态物理量 
+            # 计算右状态物理量
             rho_r = Uh_r[j, 0]  # 右侧密度
             u_r = Uh_r[j, 1] / rho_r  # 右侧速度
             E_r = Uh_r[j, 2]  # 右侧总能
@@ -251,7 +251,7 @@ def Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag
             Fh_r[j, 1] = rho_r * u_r ** 2 + p_r  # 动量通量
             Fh_r[j, 2] = u_r * (E_r + p_r)  # 能量通量
 
-            # 计算Roe平均量 
+            # 计算Roe平均量
             sqrt_rho_l = np.sqrt(rho_l)
             sqrt_rho_r = np.sqrt(rho_r)
             # Roe平均密度
@@ -272,7 +272,7 @@ def Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R, flag_fds_met, flag_spa_typ, flag
             # 存储Roe平均通量
             F_ave[j] = [rho_ave * u_ave, rho_ave * u_ave ** 2 + p_ave, u_ave * (E_ave + p_ave)]
 
-            # 构造Jacobian矩阵 
+            # 构造Jacobian矩阵
             A_ave = np.array([
                 [0, 1, 0],
                 [(-(3 - Gamma) / 2) * u_ave ** 2, (3 - Gamma) * u_ave, Gamma - 1],
@@ -887,13 +887,13 @@ class ShockCapturingScheme(Enum):
 # 指定通量分裂方法
 # 1 - 通量向量分裂(FVS)
 # 2 - 通量差分裂(FDS)
-flag_flu_spl = FluxSplittingMethod.FDS.value
+flag_flu_spl = FluxSplittingMethod.FVS.value
 
 # FVS方法家族选择
 # 1 - Steger-Warming (S-W)
 # 2 - Lax-Friedrich (L-F)
 # 3 - Van Leer
-flag_fvs_met = FVSMethods.VAN_LEER.value
+flag_fvs_met = FVSMethods.STEGER_WARMING.value
 
 # 指定通量重构方法
 # 1 - 直接重构(针对F(U))
@@ -989,7 +989,7 @@ while cnt_step < max_step:
 
     elif flag_flu_spl == 2:
         xs_new, xt_new, Fx = Flux_Diff_Split(U, N, dx, Gamma, Cp, Cv, R,flag_fds_met, flag_spa_typ,flag_scs_typ)
-        #2 - 流通差分分裂法（FDS）
+
         # 第一步：计算中间解U_1
         U_1 = U + (dt * (-1 * Fx))
 
@@ -1043,15 +1043,22 @@ if flag_flu_spl == FluxSplittingMethod.FVS.value:
         ShockCapturingScheme.WENO.value: "5th-order WENO",
         ShockCapturingScheme.GVC.value: "Group Velocity Control (GVC)"
     }
-    method_desc = f"FVS-{fvs_methods[flag_fvs_met]} + {scs_methods[flag_scs_typ]}"
+    # 包含网格数信息
+    method_desc = f"FVS-{fvs_methods[flag_fvs_met]} + {scs_methods[flag_scs_typ]} cell {N-1}"
 
 elif flag_flu_spl == FluxSplittingMethod.FDS.value:
     fds_methods = {
         FDSMethods.ROE.value: "Roe"
     }
-
-    method_desc = f"FDS-{fds_methods[flag_fds_met]} "
-# 创建最终结果图
+    # FDS的激波捕捉格式
+    scs_methods = {
+        ShockCapturingScheme.TVD_VAN_LEER.value: "TVD (Van Leer Limiter)",
+        ShockCapturingScheme.WENO.value: "5th-order WENO",
+        ShockCapturingScheme.GVC.value: "Group Velocity Control (GVC)"
+    }
+    # 包含网格数信息
+    method_desc = f"FDS-{fds_methods[flag_fds_met]} + {scs_methods[flag_scs_typ]} cell {N-1}"
+# 创建最终结果图（添加背景色）
 h_end = plt.figure(figsize=(10, 8), facecolor='white')
 
 # Subplot 1: 密度
@@ -1107,7 +1114,7 @@ plt.suptitle(f"Sod Shock Tube Simulation ({method_desc}) at t = {t_end:.3f}s",
              fontsize=16, fontweight='bold')
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 # 生成文件名并保存为PDF
-filename = f"Sod_Shock_{method_desc}_t_{t_end:.3f}s".replace(".", "p")
+filename = f"{method_desc}_t_{t_end:.3f}s".replace(".", "p")
 plt.savefig(filename, bbox_inches='tight', dpi=300)
 print(f"Results saved as: {filename}")
 plt.show()

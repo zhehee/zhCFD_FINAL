@@ -8,6 +8,7 @@
 \usepackage{tabularx}
 \usepackage{booktabs}
 \usepackage{float} % Required for the H float option
+\usepackage{siunitx} % 支持 \SI 单位宏包
 
 \lstset{
     language=Python, % 添加语言支持
@@ -972,8 +973,127 @@ $$
 
 \newpage   
 \section{结果分析}
-根据代码可以生成由各种格式计算的激波管模拟结果。以下是不同格式下的结果对比：
+根据代码可以生成由各种格式计算的激波管模拟结果。我们先从网格数对结果的影响开始分析:
+采用FVS-Steger-Warming-WENO格式，网格数为$N=20\sim250$时的结果如下图所示：
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 20_t_0p200s.png}
+    \caption{网格数N=20激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 50_t_0p200s.png}
+    \caption{网格数N=50激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 100_t_0p200s.png}
+    \caption{网格数N=100激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 150_t_0p200s.png}
+    \caption{网格数N=150激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 200_t_0p200s.png}
+    \caption{网格数N=200激波管模拟结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{FVS-Steger-Warming + 5th-order WENO cell 250_t_0p200s.png}
+    \caption{网格数N=250激波管模拟结果}
+\end{figure}
+从上述不同网格数 $N$ 的计算结果可以看出，随着 $N$ 的增大，激波等间断结构的分辨率明显提升。当 $N$ 增加到 200 及以上时，激波位置和幅值基本不再随网格加密发生明显变化，说明数值解已基本收敛，网格依赖性很小。因此，后续计算中选用 $N=201$ 作为典型网格即可兼顾精度与计算效率。需要指出的是，在本题一维问题中，网格数量对计算量影响有限，但在更高维度或复杂几何问题中，网格收敛性分析对于保证数值结果可靠性和优化计算资源分配具有重要意义。
+\newpage  
 
+接下来我们分析不同格式对结果的影响。我们选择网格数为$N=200$，时间步长为$\Delta t=0.001s$，总时间为$T=0.2s$，采用不同格式进行计算，结果如下：
+
+对FVS方法，考察不同分裂方法的影响：
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Lax-Friedrich + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Lax-Friedrich + 5阶WENO格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Steger-Warming + 5阶WENO格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Van Leer + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Van-Leer + 5阶WENO格式结果}
+\end{figure}
+
+\subsection{性能分析}
+
+\subsubsection{密度分布对比}
+三种方法在接触间断分辨率上的差异如下：
+
+\textbf{Lax-Friedrich 方法} 
+在 $x \approx \SI{0.2}{\meter}$ 处接触间断区有明显扩散，数值解呈明显阶梯状分布
+
+\textbf{Steger-Warming 方法}
+接触间断最清晰锐利，数值解与精确解贴合最紧密
+
+\textbf{Van Leer 方法}
+接触间断区存在轻微扩散，但数值解过渡优于Lax-Friedrich方法
+
+\subsubsection{压力分布对比}
+不同方法在压力分布上的特征表现：
+
+\textbf{Lax-Friedrich 方法}
+平台区域($x \in [\SI{-0.3}{\meter}, \SI{0.2}{\meter}]$)出现可见数值振荡
+
+\textbf{Steger-Warming 方法}
+平台区保持最平稳，$x \approx \SI{0.3}{\meter}$激波位置偏移最小
+
+\textbf{Van Leer 方法}
+平台区域整体维持良好，但激波位置存在轻微偏移
+
+\subsubsection{速度分布对比}
+稀疏波区域($x < 0$)的速度分布特性：
+
+\textbf{Lax-Friedrich 方法}
+出现显著非物理振荡，接触间断区速度分布失真
+
+\textbf{Steger-Warming 方法}
+膨胀波区域过渡平滑，无明显振荡现象
+
+\textbf{Van Leer 方法}
+膨胀波区域过渡最平滑，速度分布完全无振荡
+
+\subsubsection{比内能分布对比}
+比内能分布精度对比结果：
+
+\textbf{Lax-Friedrich 方法}
+$x \approx \SI{0.2}{\meter}$接触间断区误差最大，分辨率最低
+
+\textbf{Steger-Warming 方法}
+整体精度最高，接触间断分辨率最佳
+
+\textbf{Van Leer 方法}
+接触间断区附近存在轻微过冲现象
+
+对FVS方法，考察不同激波捕捉格式的影响，分裂采用Steger-Warming 方法：
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + TVD (Van Leer Limiter)_t_0p200s.png}
+    \caption{FVS-Steger-Warming + TVD格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + 5th-order WENO_t_0p200s.png}
+    \caption{FVS-Steger-Warming + WENO格式结果}
+\end{figure}
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Sod_Shock_FVS-Steger-Warming + Group Velocity Control (GVC)_t_0p200s.png}
+    \caption{FVS-Steger-Warming + GVC格式结果}
+\end{figure}
 
 \section{AI工具使用说明表}
 \begin{table}[!htbp]
