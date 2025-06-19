@@ -768,21 +768,23 @@ $$
 3. \textbf{van Leer (flag\_fvs\_met=3)}  
     van Leer分裂法基于马赫数$\mathrm{Ma}=u/c$，其数值实现如下：
 
-    \begin{itemize}
-        \item 对每个网格点，计算密度$\rho$、速度$u$、总能$E$、温度$T$、压力$p$和声速$c$，再得到马赫数$\mathrm{Ma}=u/c$。
-        \item 若$\mathrm{Ma} \geq 1$，则正通量$\mathbf{F}^+$取完整物理通量，负通量$\mathbf{F}^-$为零；
-        \item 若$\mathrm{Ma} \leq -1$，则负通量$\mathbf{F}^-$取完整物理通量，正通量$\mathbf{F}^+$为零；
-        \item 若$|\mathrm{Ma}| < 1$，则
-        \begin{align*}
-            F_1^+ &= \rho c \left(\frac{\mathrm{Ma}+1}{2}\right)^2 \\
-            F_1^- &= -\rho c \left(\frac{\mathrm{Ma}-1}{2}\right)^2 \\
-            F_2^+ &= \frac{F_1^+}{\gamma} \left[(\gamma-1)u + 2c\right] \\
-            F_2^- &= \frac{F_1^-}{\gamma} \left[(\gamma-1)u - 2c\right] \\
-            F_3^+ &= \frac{F_1^+}{2(\gamma^2-1)} \left[(\gamma-1)u + 2c\right]^2 \\
-            F_3^- &= \frac{F_1^-}{2(\gamma^2-1)} \left[(\gamma-1)u - 2c\right]^2
-        \end{align*}
-        \item 最终正负通量分量分别为$\mathbf{F}^+ = (F_1^+, F_2^+, F_3^+)$，$\mathbf{F}^- = (F_1^-, F_2^-, F_3^-)$。
-    \end{itemize}
+    在计算过程中，对于每个网格点，首先计算密度$\rho$、速度$u$、总能$E$、温度$T$、压力$p$和声速$c$，进而得到马赫数$\mathrm{Ma}=u/c$。根据马赫数范围进行通量分裂处理：
+
+当$\mathrm{Ma} \geq 1$时，正通量$\mathbf{F}^+$取完整物理通量，即$\mathbf{F}^+ = \mathbf{F}$，同时负通量$\mathbf{F}^-$设为零；当$\mathrm{Ma} \leq -1$时，负通量$\mathbf{F}^-$取完整物理通量$\mathbf{F}^- = \mathbf{F}$，同时正通量$\mathbf{F}^+$设为零。
+
+当$|\mathrm{Ma}| < 1$时，通量按以下公式分裂：
+$$
+\begin{aligned}
+F_1^+ &= \rho c \left(\frac{\mathrm{Ma}+1}{2}\right)^2, \quad
+F_1^- = -\rho c \left(\frac{\mathrm{Ma}-1}{2}\right)^2 \\
+F_2^+ &= \frac{F_1^+}{\gamma} \left[(\gamma-1)u + 2c\right], \quad
+F_2^- = \frac{F_1^-}{\gamma} \left[(\gamma-1)u - 2c\right] \\
+F_3^+ &= \frac{F_1^+}{2(\gamma^2-1)} \left[(\gamma-1)u + 2c\right]^2, \quad
+F_3^- = \frac{F_1^-}{2(\gamma^2-1)} \left[(\gamma-1)u - 2c\right]^2
+\end{aligned}
+$$
+
+最终，正负通量分量分别构造为$\mathbf{F}^+ = (F_1^+, F_2^+, F_3^+)$和$\mathbf{F}^- = (F_1^-, F_2^-, F_3^-)$。
 
     这种实现方式可有效区分超音速与亚音速区域，保证通量分裂的物理一致性和数值稳定性。
 
@@ -796,28 +798,30 @@ $$
 
 TVD格式采用Van Leer限制器，具体实现过程如下：
 
-\begin{itemize}
-    \item 设定起始索引$xs=1$，结束索引$xt=N-2$，小量$\varepsilon=10^{-5}$防止除零
-    \item 对每个$j$在$[xs, xt)$区间
-    \begin{enumerate}
-        \item 计算正通量梯度比：$r_p = \dfrac{F_p[j] - F_p[j-1]}{F_p[j+1] - F_p[j] + \varepsilon}$
-        \item 计算负通量梯度比：$r_n = \dfrac{F_n[j+2] - F_n[j+1]}{F_n[j+1] - F_n[j] + \varepsilon}$
-        \item 计算Van Leer限制器：$\Phi_p = \dfrac{r_p + |r_p|}{1 + r_p}$，$\Phi_n = \dfrac{r_n + |r_n|}{1 + r_n}$
-        \item 半网格点通量重构：
-        \begin{align*}
-            Fh_p[j] &= F_p[j] + 0.5\,\Phi_p\,(F_p[j+1] - F_p[j]) \\
-            Fh_n[j] &= F_n[j+1] - 0.5\,\Phi_n\,(F_n[j+1] - F_n[j])
-        \end{align*}
-    \end{enumerate}
-    \item 更新索引范围$xs_{new}=xs+1$，$xt_{new}=xt$，计算通量导数：
-    \begin{align*}
-        Fx_p[j] &= \frac{Fh_p[j] - Fh_p[j-1]}{dx} \\
-        Fx_n[j] &= \frac{Fh_n[j] - Fh_n[j-1]}{dx} \\
-        Fx[j] &= Fx_p[j] + Fx_n[j]
-    \end{align*}
-\end{itemize}
+设定起始索引$xs=1$和结束索引$xt=N-2$，其中引入小量$\varepsilon=10^{-5}$以防止除零情况。对于每个索引$j$在区间$[xs, xt)$内执行以下计算步骤：
 
-该实现保证了激波捕捉时的无振荡性和高分辨率
+首先计算正通量梯度比：$r_p = \dfrac{F_p[j] - F_p[j-1]}{F_p[j+1] - F_p[j] + \varepsilon}$；
+
+接着计算负通量梯度比：$r_n = \dfrac{F_n[j+2] - F_n[j+1]}{F_n[j+1] - F_n[j] + \varepsilon}$；
+
+随后应用Van Leer限制器函数：$\Phi_p = \dfrac{r_p + |r_p|}{1 + r_p}$和$\Phi_n = \dfrac{r_n + |r_n|}{1 + r_n}$；
+
+最后进行半网格点通量重构：
+$$
+Fh_p[j] = F_p[j] + 0.5\,\Phi_p\,(F_p[j+1] - F_p[j]), \quad
+Fh_n[j] = F_n[j+1] - 0.5\,\Phi_n\,(F_n[j+1] - F_n[j])
+$$
+
+完成所有$j$的计算后，更新索引范围：$xs_{\text{new}} = xs + 1$，$xt_{\text{new}} = xt$。在新索引范围$[xs_{\text{new}}, xt_{\text{new}}]$内计算通量导数：
+$$
+Fx_p[j] = \frac{Fh_p[j] - Fh_p[j-1]}{dx}, \quad
+Fx_n[j] = \frac{Fh_n[j] - Fh_n[j-1]}{dx}
+$$
+以及总通量导数：
+$$
+Fx[j] = Fx_p[j] + Fx_n[j]
+$$
+
 
 2. \textbf{五阶WENO (flag\_scs\_typ=2)}
 
@@ -874,13 +878,102 @@ TVD格式采用Van Leer限制器，具体实现过程如下：
     Fx[j] &= Fx_p[j] + Fx_n[j]
 \end{align*}
 
-该实现保证了高阶精度和无振荡性，适用于激波和间断捕捉的高分辨率数值模拟。
+3\quad \textbf{群速度控制GVC (flag\_scs\_typ=3)}
 
-3. \textbf{群速度控制GVC (flag\_scs\_typ=3)}
+群速度控制（GVC）格式的实现过程如下：
+
+设定起始索引 $xs=1$，结束索引 $xt=N-2$，并引入小量 $em=10^{-5}$ 以防止除零情况。同时设置群速度控制参数：$\beta=0.8$ 作为群速度控制因子，$\gamma=0.3$ 作为高阶修正系数。
+
+对于每个索引 $j$ 在区间 $[xs, xt)$ 内进行如下计算：
+首先计算正通量梯度比：
+$$
+r_p = \dfrac{F_p[j] - F_p[j-1]}{F_p[j+1] - F_p[j] + em}
+$$
+接着计算负通量梯度比：
+$$
+r_n = \dfrac{F_n[j+2] - F_n[j+1]}{F_n[j+1] - F_n[j] + em}
+$$
+然后计算群速度控制限制器函数：
+$$
+\Phi_p = \frac{r_p + \beta |r_p|}{1 + \beta r_p + \gamma r_p^2}, \quad
+\Phi_n = \frac{r_n + \beta |r_n|}{1 + \beta r_n + \gamma r_n^2}
+$$
+最后计算含群速度控制的半网格点通量：
+$$
+Fh_p[j] = F_p[j] + 0.5\,\Phi_p\,(F_p[j+1] - F_p[j]), \quad
+Fh_n[j] = F_n[j+1] - 0.5\,\Phi_n\,(F_n[j+1] - F_n[j])
+$$
+
+完成上述计算后，更新索引范围为 $xs_{\text{new}} = xs+1$，$xt_{\text{new}} = xt$。在新索引区间 $[xs_{\text{new}}, xt_{\text{new}})$ 内计算通量导数：
+$$
+Fx_p[j] = \frac{Fh_p[j] - Fh_p[j-1]}{dx}, \quad
+Fx_n[j] = \frac{Fh_n[j] - Fh_n[j-1]}{dx}
+$$
+以及总通量导数：
+$$
+Fx[j] = Fx_p[j] + Fx_n[j]
+$$
+
+接下来是根据流通差分分裂法（FDS），实现激波模拟算法：
+\lstinputlisting[language=Python, caption={流通差分分裂法实现}, firstline=198, lastline=313]{code.py}
+目前只有ROE格式的实现，ROE格式的实现过程如下：
+
+1. \textbf{界面左右状态变量重构}  
+    通过高阶差分（如WENO）在每个界面$j+\frac{1}{2}$处获得左右守恒变量$\mathbf{U}_{j+\frac{1}{2}}^L$和$\mathbf{U}_{j+\frac{1}{2}}^R$。
+
+2. \textbf{物理量计算}  
+    对于每个界面，分别计算左右状态的密度$\rho_{L,R}$、速度$u_{L,R}$、总能$E_{L,R}$、温度$T_{L,R}$、压力$p_{L,R}$、总焓$H_{L,R}$：
+    \begin{align*}
+    T_{L,R} &= \frac{E_{L,R}/\rho_{L,R} - 0.5 u_{L,R}^2}{C_v} \\
+    p_{L,R} &= \rho_{L,R} R T_{L,R} \\
+    H_{L,R} &= 0.5 u_{L,R}^2 + C_p T_{L,R}
+    \end{align*}
+
+3. \textbf{Roe平均量计算}  
+    \begin{align*}
+    \tilde{\rho} &= \left( \frac{\sqrt{\rho_L} + \sqrt{\rho_R}}{2} \right)^2 \\
+    \tilde{u} &= \frac{\sqrt{\rho_L} u_L + \sqrt{\rho_R} u_R}{\sqrt{\rho_L} + \sqrt{\rho_R}} \\
+    \tilde{H} &= \frac{\sqrt{\rho_L} H_L + \sqrt{\rho_R} H_R}{\sqrt{\rho_L} + \sqrt{\rho_R}} \\
+    \tilde{p} &= \frac{\gamma-1}{\gamma} \left( \tilde{\rho} \tilde{H} - \frac{1}{2} \tilde{\rho} \tilde{u}^2 \right) \\
+    \tilde{c}^2 &= (\gamma-1)\left( \tilde{H} - \frac{1}{2} \tilde{u}^2 \right)
+    \end{align*}
+
+4. \textbf{Roe平均Jacobian矩阵特征分解}  
+    构造Roe平均Jacobian矩阵$\mathbf{A}(\tilde{\mathbf{U}})$，进行特征分解：
+    \[
+    \mathbf{A} = \mathbf{V} \Lambda \mathbf{V}^{-1}
+    \]
+    其中$\Lambda = \operatorname{diag}(\lambda_1, \lambda_2, \lambda_3)$为特征值对角阵。
+
+5. \textbf{熵修正}  
+    对每个特征值$\lambda_i$，采用Harten熵修正：
+    \[
+    |\lambda_i|_{\text{mod}} = 
+    \begin{cases}
+    |\lambda_i|, & |\lambda_i| > \varepsilon \\
+    \frac{\lambda_i^2 + \varepsilon^2}{2\varepsilon}, & |\lambda_i| \leq \varepsilon
+    \end{cases}
+    \]
+    构造绝对Jacobian矩阵$|\mathbf{A}| = \mathbf{V} |\Lambda|_{\text{mod}} \mathbf{V}^{-1}$。
+
+6. \textbf{Roe界面通量计算}  
+    \[
+    \mathbf{F}_{j+\frac{1}{2}} = \frac{1}{2} \left[ \mathbf{F}(\mathbf{U}_L) + \mathbf{F}(\mathbf{U}_R) \right] - \frac{1}{2} |\mathbf{A}| (\mathbf{U}_R - \mathbf{U}_L)
+    \]
+
+7. \textbf{空间导数离散}  
+    用中心差分格式计算：
+    \[
+    \left( \frac{\partial \mathbf{F}}{\partial x} \right)_j = \frac{\mathbf{F}_{j+\frac{1}{2}} - \mathbf{F}_{j-\frac{1}{2}}}{\Delta x}
+    \]
+
+上述步骤即为Roe格式通量差分分裂法的完整实现流程。
 
 
 \newpage   
 \section{结果分析}
+根据代码可以生成由各种格式计算的激波管模拟结果。以下是不同格式下的结果对比：
+
 
 \section{AI工具使用说明表}
 \begin{table}[!htbp]
